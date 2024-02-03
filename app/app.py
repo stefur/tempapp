@@ -16,9 +16,9 @@ locale.setlocale(locale.LC_ALL, "sv_SE.utf-8")
 app_ui = ui.page_navbar(
     shinyswatch.theme.simplex(),
     ui.nav_panel(
-        "Timme för timme",
+        "Dashboard",
         ui.page_fluid(
-            ui.row(ui.h2(icon("clock", style="regular"), " Senaste dygnet")),
+            ui.row(ui.h2(icon("clock", style="regular"), " Timme för timme")),
             ui.br(),
             ui.row(
                 ui.h4(
@@ -29,13 +29,18 @@ app_ui = ui.page_navbar(
                 ),
             ),
             ui.row(ui.output_ui("time_slider")),
+            ui.br(),
+            ui.row(ui.h2(icon("calendar-day", style="solid"), " Senaste dygnet")),
+            ui.br(),
             ui.row(
                 ui.card(
                     output_widget("day_plt"),
                 ),
             ),
+            ui.br(),
+            ui.row(ui.h2(icon("calendar-week", style="solid"), " Senaste 7 dygnen")),
+            ui.br(),
             ui.row(
-                ui.h2(icon("calendar", style="regular"), " Senaste 7 dygnen"),
                 ui.column(
                     12,
                     ui.card(
@@ -58,6 +63,8 @@ app_ui = ui.page_navbar(
     ui.nav_panel(
         "Långtidsdata",
         ui.page_fluid(
+            ui.row(ui.h2(icon("calendar-days", style="solid"), " Tidsserie")),
+            ui.br(),
             ui.row(
                 ui.column(
                     12,
