@@ -1,0 +1,39 @@
+[project]
+name = "tempapp"
+version = "0.1.0"
+description = "Shiny application to visualize indoor temperatures"
+authors = [
+    { name = "stefur", email = "stefan@furne.net" }
+]
+dependencies = [
+    "shiny>=0.7.1",
+    "htmltools>=0.5.1",
+    "shinyswatch>=0.4.2",
+    "polars>=0.20.7",
+    "shinywidgets>=0.3.0",
+    "duckdb==0.9.2",
+    "plotly>=5.18.0",
+    "pandas>=2.0.3",
+    "pyarrow>=15.0.0",
+    "faicons>=0.2.2",
+    "matplotlib>=3.7.4",
+]
+readme = "README.md"
+requires-python = ">= 3.8"
+
+[tool.rye.scripts]
+devserver = "uvicorn tempapp.app:app --host 0.0.0.0 --port 8000 --reload"
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.rye]
+managed = true
+dev-dependencies = []
+
+[tool.hatch.metadata]
+allow-direct-references = true
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/tempapp"]

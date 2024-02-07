@@ -1,11 +1,11 @@
 import locale
 from datetime import datetime, timedelta
 
-import plotly.express as px
-import plotly.graph_objects as go
+import plotly.express as px  # type: ignore
+import plotly.graph_objects as go  # type: ignore
 import polars as pl
 import shinyswatch
-import utils
+import tempapp.utils as utils  # type: ignore
 from faicons import icon_svg as icon
 from shiny import App, reactive, render, ui
 from shinywidgets import output_widget, render_widget
@@ -172,7 +172,7 @@ def server(input, output, session):
         )
 
         data = utils.query_db(
-            f"""SELECT * FROM temps 
+            f"""SELECT * FROM temps
             WHERE time >= date_trunc('day', (SELECT MAX(time) FROM temps)) - INTERVAL '6' DAY
             AND time <= date_trunc('day', (SELECT MAX(time) FROM temps)) + INTERVAL '1' DAY{floor_filter}"""
         )
@@ -222,8 +222,8 @@ def server(input, output, session):
     def day_plt() -> go.FigureWidget:
         # Get the latest available from 24 hours back.
         data = utils.query_db(
-            """SELECT * FROM temps 
-            WHERE time >= (SELECT MAX(time) FROM temps) 
+            """SELECT * FROM temps
+            WHERE time >= (SELECT MAX(time) FROM temps)
             - INTERVAL '24' HOUR AND time <= (SELECT MAX(time) FROM temps)"""
         )
 

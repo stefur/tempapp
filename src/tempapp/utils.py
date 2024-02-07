@@ -1,8 +1,9 @@
 from datetime import datetime
+from typing import Tuple
 
 import duckdb
 import matplotlib
-import plotly.graph_objects as go
+import plotly.graph_objects as go  # type: ignore
 import polars as pl
 from polars import DataFrame
 
@@ -20,7 +21,7 @@ def dot_to_comma(num: float) -> str:
 def query_db(query: str) -> DataFrame:
     """Query the database and return a dataframe with the result"""
     # Connect to the db
-    con = duckdb.connect("/db/temps.db")
+    con = duckdb.connect("db/temps.db")
 
     # Query all the data and push it to a polars frame
     data = con.sql(query).pl()
@@ -83,7 +84,7 @@ def determine_bg_color(temp: int) -> str:
     return mapped_color
 
 
-def determine_temp_scale(temp: int) -> (int, int):
+def determine_temp_scale(temp: int) -> Tuple[int, int]:
     tmin = 18 if temp > 18 else temp  # Set the minimum value for the color scale
     tmax = 25 if temp < 25 else temp  # Set the maximum value for the color scale
 
