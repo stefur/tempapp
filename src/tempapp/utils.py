@@ -8,9 +8,12 @@ import polars as pl
 from polars import DataFrame
 
 
+# TODO:
+# Date conversion should be done in duckDB
+# get_max_date/last_reading should be the same
 def date_conversion(dates: datetime) -> str:
     """Take the date and return it in correct locale as expected"""
-    return dates.strftime("%d %B %Y")
+    return dates.strftime("%-d %B %Y")
 
 
 def dot_to_comma(num: float) -> str:
@@ -46,19 +49,22 @@ def get_max_date() -> datetime:
     )
 
 
-def set_plotly_config(fig: go.FigureWidget) -> go.FigureWidget:
-    """Apply prefered config options"""
+def set_plotly_config(fig: go.FigureWidget, **kwargs) -> go.FigureWidget:
+    """Apply default config options as well as any optionals"""
     # This is a workaround:
     # https://github.com/plotly/plotly.py/issues/1074#issuecomment-1471486307
     # https://github.com/posit-dev/py-shiny/issues/944
 
-    fig._config = fig._config | {
+    config_defaults = {
         "displayModeBar": False,
         "scrollZoom": False,
         "displayLogo": False,
         "editable": False,
         "locale": "sv",
     }
+    config_defaults.update(kwargs)
+    fig._config = fig._config | config_defaults
+
     return fig
 
 
