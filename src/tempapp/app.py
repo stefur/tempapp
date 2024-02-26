@@ -194,6 +194,11 @@ def server(input, output, session):
                 z=avg_temp["temp"],
                 x=avg_temp["date"],
                 y=avg_temp["hour"],
+                hoverinfo="text",
+                hovertext=[
+                    f"""Datum: {row["date"]}<br>Tid: {row["hour"]}<br>Temp: {row["temp"]}°C"""
+                    for row in avg_temp.rows(named=True)
+                ],  # Manually create the text for hover labels to avoid showing labels for missing (e.g. future) timestamps
                 colorscale="rdylbu_r",  # Set the color scale (in reverse)
                 zmin=18
                 if min(avg_temp["temp"]) > 18
@@ -227,7 +232,14 @@ def server(input, output, session):
             - INTERVAL '24' HOUR AND time <= (SELECT MAX(time) FROM temps)"""
         )
 
-        by_hour = data.with_columns(pl.col("time").dt.truncate("1h").alias("time"))
+        # TODO
+        # This should be taken care of in db
+        by_hour = data.with_columns(
+            pl.col("time").dt.truncate("1h").alias("time"),
+            pl.col("time").map_elements(utils.date_conversion).alias("date"),
+            pl.col("time").dt.strftime("%H:%M").alias("hour"),
+            pl.col("temp").round(1).alias("temp"),
+        )
 
         house_avg_hour = (
             by_hour.select("time", "temp")
@@ -302,6 +314,7 @@ def server(input, output, session):
                     showlegend=False,
                     mode="lines",
                     line=dict(color="darkgray", dash="dot"),
+                    hoverinfo="none",  # Connectors should not any hover
                 )
             )
 
@@ -318,8 +331,16 @@ def server(input, output, session):
                     mode="markers",
                     name=floor,
                     marker=dict(color=color, size=12),
+                    hoverinfo="text",
+                    hovertext=[
+                        f"""Datum: {row["date"]}<br>Tid: {row["hour"]}<br>Temp: {row["temp"]}°C"""
+                        for row in df.rows(named=True)
+                    ],
                 )
             )
+
+        # Disable all clicking on traces for this plot as it doesn't make much sense here
+        plt.update_layout(legend_itemclick=False, legend_itemdoubleclick=False)
 
         result = utils.set_plotly_config(plt)
 
@@ -337,7 +358,10 @@ def server(input, output, session):
             data.with_columns(pl.col("time").dt.truncate("1d").alias("day"))
             .select("day", "temp", "floor")
             .group_by(["day", "floor"])
-            .agg(pl.col("temp").mean().alias("mean"), pl.col("temp").std().alias("std"))
+            .agg(
+                pl.col("temp").mean().round(1).alias("mean"),
+                pl.col("temp").std().alias("std"),
+            )
             .with_columns(
                 (pl.col("mean") + pl.col("std")).alias("std_plus"),
                 (pl.col("mean") - pl.col("std")).alias("std_minus"),
@@ -393,6 +417,7 @@ def server(input, output, session):
                     name=floor,
                     legendgroup=floor,
                     line=dict(color=color),
+                    hovertemplate="%{x}<br>%{y}°C",
                 )
             )
 
