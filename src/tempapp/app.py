@@ -258,6 +258,7 @@ def server(input, output, session):
                 fill="tozeroy",
                 line=dict(color="rgba(211, 211, 211, 0.8)"),  # Light grey
                 fillcolor="rgba(211, 211, 211, 0.4)",
+                hoverinfo="none",  # Hide the hover label since it is mostly blocked any way
             )
         )
         plt.update_layout(
@@ -278,7 +279,7 @@ def server(input, output, session):
                     else min(
                         by_hour["temp"]
                     ),  # Set the minimum value for the color scale
-                    25 if max(by_hour["temp"]) < 25 else max(by_hour["temp"] + 1),
+                    25 if max(by_hour["temp"]) < 24 else max(by_hour["temp"] + 1),
                 ],  # Set the maximum value for the color scale, max(by_hour["temp"] + 1)],
             ),
         )
