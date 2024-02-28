@@ -125,6 +125,15 @@ def server(input, output, session):
             end=utils.get_max_date() + timedelta(days=1),
         )
 
+    @reactive.Effect
+    def _():
+        """Make sure that the date filter in long term data is properly up to date"""
+        ui.update_date_range(
+            id="daterange",
+            start=utils.get_max_date() - timedelta(days=30),
+            end=utils.get_max_date() + timedelta(days=1),
+        )
+
     @output
     @render.ui
     def temp_boxes():
