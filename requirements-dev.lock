@@ -116,7 +116,7 @@ pytz==2024.1
     # via pandas
 questionary==2.0.1
     # via shiny
-shiny==0.7.1
+shiny==0.8.0
     # via shinyswatch
     # via shinywidgets
     # via tempapp

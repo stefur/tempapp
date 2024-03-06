@@ -6,7 +6,7 @@ authors = [
     { name = "stefur", email = "stefan@furne.net" }
 ]
 dependencies = [
-    "shiny>=0.7.1",
+    "shiny>=0.8.0",
     "htmltools>=0.5.1",
     "shinyswatch>=0.4.2",
     "polars>=0.20.10",

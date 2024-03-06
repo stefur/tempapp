@@ -115,7 +115,7 @@ def server(input, output, session):
             ),
         )
 
-    @reactive.Effect
+    @reactive.effect
     @reactive.event(input.reset)
     def reset_date_filter():
         """Reset the date range upon a button click"""
