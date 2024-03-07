@@ -25,7 +25,7 @@ app_ui = ui.page_navbar(
                     ui.output_text("status_right_now"),
                 ),
                 ui.p(
-                    ui.output_ui("temp_boxes"),
+                    ui.output_ui("temp_boxes", fillable=True),
                 ),
             ),
             ui.row(ui.output_ui("time_slider")),
