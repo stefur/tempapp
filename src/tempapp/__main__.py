@@ -1,5 +1,5 @@
 import uvicorn
-from tempapp.app import app  # type: ignore
+from tempapp.app import app  # type: ignore[import-untyped]
 
 
 def main():

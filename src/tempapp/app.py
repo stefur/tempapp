@@ -1,11 +1,11 @@
 import locale
 from datetime import datetime, timedelta
 
-import plotly.express as px  # type: ignore
-import plotly.graph_objects as go  # type: ignore
+import plotly.express as px  # type: ignore[import-untyped]
+import plotly.graph_objects as go  # type: ignore[import-untyped]
 import polars as pl
 import shinyswatch
-import tempapp.utils as utils  # type: ignore
+import tempapp.utils as utils  # type: ignore[import-untyped]
 from faicons import icon_svg as icon
 from shiny import App, reactive, render, ui
 from shinywidgets import output_widget, render_widget

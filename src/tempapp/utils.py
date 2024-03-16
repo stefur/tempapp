@@ -3,7 +3,7 @@ from typing import Tuple
 
 import duckdb
 import matplotlib
-import plotly.graph_objects as go  # type: ignore
+import plotly.graph_objects as go  # type: ignore[import-untyped]
 import polars as pl
 from polars import DataFrame
 
