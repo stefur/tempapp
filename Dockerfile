@@ -7,7 +7,8 @@ WORKDIR /app
 COPY . .
 
 RUN apt update && apt install curl locales --yes
-RUN curl -sSf https://rye-up.com/get | RYE_VERSION="0.29.0" RYE_TOOLCHAIN_VERSION="3.11" RYE_INSTALL_OPTION="--yes" bash
+RUN export RYE_TOOLCHAIN_VERSION=$(cat .python-version) && \
+    curl -sSf https://rye-up.com/get | RYE_VERSION="0.29.0" RYE_TOOLCHAIN_VERSION="$RYE_TOOLCHAIN_VERSION" RYE_INSTALL_OPTION="--yes" bash
 RUN rye sync --no-lock --no-dev
 
 # Enable Swedish locale

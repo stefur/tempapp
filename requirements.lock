@@ -78,6 +78,7 @@ mdurl==0.1.2
 numpy==1.26.4
     # via contourpy
     # via matplotlib
+    # via pandas
     # via pyarrow
 packaging==23.2
     # via htmltools
