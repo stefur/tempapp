@@ -17,6 +17,10 @@ asgiref==3.7.2
     # via shiny
 asttokens==2.4.1
     # via stack-data
+certifi==2024.2.2
+    # via requests
+charset-normalizer==3.3.2
+    # via requests
 click==8.1.7
     # via shiny
     # via uvicorn
@@ -45,6 +49,7 @@ htmltools==0.5.1
     # via tempapp
 idna==3.6
     # via anyio
+    # via requests
 ipython==8.18.0
     # via ipywidgets
 ipywidgets==8.1.2
@@ -116,6 +121,8 @@ pytz==2024.1
     # via pandas
 questionary==2.0.1
     # via shiny
+requests==2.31.0
+    # via tempapp
 shiny==0.8.1
     # via shinyswatch
     # via shinywidgets
@@ -141,6 +148,7 @@ traitlets==5.14.1
     # via ipywidgets
     # via jupyter-core
     # via matplotlib-inline
+types-requests==2.31.0.20240311
 typing-extensions==4.10.0
     # via htmltools
     # via shiny
@@ -149,6 +157,9 @@ tzdata==2024.1
     # via pandas
 uc-micro-py==1.0.3
     # via linkify-it-py
+urllib3==2.2.1
+    # via requests
+    # via types-requests
 uvicorn==0.27.1
     # via shiny
 watchfiles==0.21.0

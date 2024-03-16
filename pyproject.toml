@@ -17,12 +17,15 @@ dependencies = [
     "pyarrow>=15.0.0",
     "faicons>=0.2.2",
     "matplotlib>=3.8.3",
+    "requests>=2.31.0",
 ]
 readme = "README.md"
 requires-python = ">= 3.11"
 
 [tool.rye.scripts]
 devserver = "uvicorn tempapp.app:app --host 0.0.0.0 --port 8000 --reload"
+get-temps = "python -m scripts/get_temps.py"
+tempapp = "python -m tempapp"
 
 [build-system]
 requires = ["hatchling"]
@@ -30,7 +33,9 @@ build-backend = "hatchling.build"
 
 [tool.rye]
 managed = true
-dev-dependencies = []
+dev-dependencies = [
+    "types-requests>=2.31.0.20240311",
+]
 
 [tool.hatch.metadata]
 allow-direct-references = true
