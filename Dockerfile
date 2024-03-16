@@ -1,18 +1,20 @@
-FROM debian:stable-slim
+FROM python:3.12.2-slim
 
+ENV PIP_DEFAULT_TIMEOUT=100
+ENV PYTHONUNBUFFERED=1
+ENV PIP_DISABLE_PIP_VERSION_CHECK=1
 ENV TZ=Europe/Stockholm
-ENV PATH=/root/.rye/shims:$PATH
 
 WORKDIR /app
-COPY . .
-
-RUN apt update && apt install curl locales --yes
-RUN export RYE_TOOLCHAIN_VERSION=$(cat .python-version) && \
-    curl -sSf https://rye-up.com/get | RYE_VERSION="0.29.0" RYE_TOOLCHAIN_VERSION="$RYE_TOOLCHAIN_VERSION" RYE_INSTALL_OPTION="--yes" bash
-RUN rye sync --no-lock --no-dev
+RUN mkdir build
+COPY . ./build
+RUN mv build/scripts ./
+RUN cd build && pip install --no-cache-dir .
+RUN rm -rf ./build
 
 # Enable Swedish locale
-RUN sed -i '/sv_SE.UTF-8/s/^# //g' /etc/locale.gen && \
-    locale-gen
+RUN apt-get update && apt-get -y install locales
 
-CMD rye run tempapp
+RUN sed -i '/sv_SE.UTF-8/s/^# //g' /etc/locale.gen && locale-gen
+
+CMD python -m tempapp
