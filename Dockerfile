@@ -8,7 +8,6 @@ ENV TZ=Europe/Stockholm
 WORKDIR /app
 RUN mkdir build
 COPY . ./build
-RUN mv build/scripts ./
 RUN cd build && pip install --no-cache-dir .
 RUN rm -rf ./build
 
@@ -17,4 +16,4 @@ RUN apt-get update && apt-get -y install locales
 
 RUN sed -i '/sv_SE.UTF-8/s/^# //g' /etc/locale.gen && locale-gen
 
-CMD python -m tempapp
+CMD python -m tempapp run

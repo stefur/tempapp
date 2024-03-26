@@ -1,3 +1,4 @@
+import json
 from datetime import datetime
 from typing import Tuple
 
@@ -6,6 +7,7 @@ import matplotlib
 import plotly.graph_objects as go  # type: ignore[import-untyped]
 import polars as pl
 from polars import DataFrame
+from requests import get
 
 
 # TODO:
@@ -106,3 +108,41 @@ def last_reading() -> str:
     )
 
     return last_reading
+
+
+def get_temps() -> None:
+    """Load the server settings and ask the API for temps to update the db"""
+    with open("settings.json", "r") as file:
+        settings = json.load(file)
+
+    # Sensors
+    entities = {
+        # 1
+        "temperature_10": {"floor": "", "temp": int},
+        # 2
+        "temperature_13": {"floor": "", "temp": int},
+        # 3
+        "temperature_16": {"floor": "", "temp": int},
+    }
+
+    time = datetime.now()
+
+    for entity in entities.keys():
+        url = f"""http://{settings["server"]["ip"]}:{settings["server"]["port"]}/api/states/sensor.{entity}"""
+
+        response = get(url, headers=settings["headers"])
+        json_data = json.loads(response.text)
+        entities[entity].update({"floor": json_data["attributes"]["friendly_name"]})
+        entities[entity].update({"temp": float(json_data["state"])})
+
+    con = duckdb.connect("db/temps.db")
+
+    for sensor, data in entities.items():
+        con.sql(
+            f"""INSERT INTO temps (time, floor, temp)
+                    VALUES ('{time}', 
+                    '{data["floor"]}', 
+                    '{data["temp"]}')"""
+        )
+
+    con.close()
