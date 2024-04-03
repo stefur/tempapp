@@ -173,6 +173,7 @@ traitlets==5.14.2
     # via jupyter-client
     # via jupyter-core
     # via matplotlib-inline
+types-pytz==2024.1.0.20240203
 types-requests==2.31.0.20240311
 typing-extensions==4.10.0
     # via htmltools

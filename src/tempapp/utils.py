@@ -6,6 +6,7 @@ import duckdb
 import matplotlib
 import plotly.graph_objects as go  # type: ignore[import-untyped]
 import polars as pl
+import pytz
 from polars import DataFrame
 from requests import get
 
@@ -108,6 +109,11 @@ def last_reading() -> str:
     )
 
     return last_reading
+
+
+def fix_timezone(dt: datetime) -> datetime:
+    """A helper function to set the correct timezone"""
+    return dt.replace(tzinfo=pytz.utc).astimezone(pytz.timezone("Europe/Stockholm"))
 
 
 def get_temps() -> None:

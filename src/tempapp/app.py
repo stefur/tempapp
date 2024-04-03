@@ -95,13 +95,13 @@ def server(input, output, session):
     @output
     @render.text
     def status_right_now():
-        # FIXME Adding 1 hour due to TZ issue
-        return f"""Kl {datetime.strftime(input.time() + timedelta(hours=1), "%H:%M (%-d/%-m)")}"""
+        return f"""Kl {datetime.strftime(utils.fix_timezone(input.time()), "%H:%M (%-d/%-m)")}"""
 
     @output
     @render.ui
     def time_slider():
         return (
+            # NOTE The input_slider has a timezone setting but is not adhering to DST, thus using a helper function instead
             ui.input_slider(
                 id="time",
                 label="",
@@ -138,9 +138,8 @@ def server(input, output, session):
     @render.ui
     def temp_boxes():
         data = utils.query_db(
-            f"SELECT * FROM temps WHERE DATE_TRUNC('hour', time) = '{input.time() + timedelta(hours=1)}'"
-            # FIXME Adding an hour here is a workaround since input.time seemingly not following the TZ
-        )
+            f"SELECT * FROM temps WHERE DATE_TRUNC('hour', time) = '{utils.fix_timezone(input.time()).strftime("%Y-%m-%d %H:%M:%S")}'"
+        )  # Fix the timezone in the query, and also format the input so that DuckDB correctly interprets the datetime
 
         # Split data for each floor
         floors = utils.split_floor_data(data)

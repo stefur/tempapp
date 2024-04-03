@@ -34,6 +34,7 @@ managed = true
 dev-dependencies = [
     "types-requests>=2.31.0.20240311",
     "ipykernel>=6.29.3",
+    "types-pytz>=2024.1.0.20240203",
 ]
 
 [tool.hatch.metadata]
