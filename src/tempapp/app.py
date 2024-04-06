@@ -243,7 +243,8 @@ def server(input, output, session):
         # TODO
         # This should be taken care of in db
         by_hour = data.with_columns(
-            pl.col("time").dt.truncate("1h").alias("time"),
+            # Note the cast to string being done here - it is due to plotly interpreting all datetime as UTC.
+            pl.col("time").dt.truncate("1h").cast(pl.Utf8).alias("time"),
             pl.col("time").map_elements(utils.date_conversion).alias("date"),
             pl.col("time").dt.strftime("%H:%M").alias("hour"),
             pl.col("temp").round(1).alias("temp"),

@@ -6,9 +6,9 @@ import duckdb
 import matplotlib
 import plotly.graph_objects as go  # type: ignore[import-untyped]
 import polars as pl
-import pytz
 from polars import DataFrame
 from requests import get
+from zoneinfo import ZoneInfo
 
 
 # TODO:
@@ -113,7 +113,7 @@ def last_reading() -> str:
 
 def fix_timezone(dt: datetime) -> datetime:
     """A helper function to set the correct timezone"""
-    return dt.replace(tzinfo=pytz.utc).astimezone(pytz.timezone("Europe/Stockholm"))
+    return dt.replace(tzinfo=ZoneInfo("UTC")).astimezone(ZoneInfo("Europe/Stockholm"))
 
 
 def get_temps() -> None:
@@ -131,7 +131,7 @@ def get_temps() -> None:
         "temperature_16": {"floor": "", "temp": int},
     }
 
-    time = datetime.now()
+    time = datetime.now(tz=ZoneInfo("Europe/Stockholm"))
 
     for entity in entities.keys():
         url = f"""http://{settings["server"]["ip"]}:{settings["server"]["port"]}/api/states/sensor.{entity}"""
@@ -146,8 +146,8 @@ def get_temps() -> None:
     for sensor, data in entities.items():
         con.sql(
             f"""INSERT INTO temps (time, floor, temp)
-                    VALUES ('{time}', 
-                    '{data["floor"]}', 
+                    VALUES ('{time}',
+                    '{data["floor"]}',
                     '{data["temp"]}')"""
         )
 
