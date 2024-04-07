@@ -11,14 +11,6 @@ from requests import get
 from zoneinfo import ZoneInfo
 
 
-# TODO:
-# Date conversion should be done in duckDB
-# get_max_date/last_reading should be the same
-def date_conversion(dates: datetime) -> str:
-    """Take the date and return it in correct locale as expected"""
-    return dates.strftime("%-d %B %Y")
-
-
 def dot_to_comma(num: float) -> str:
     """Take a float and turn it into a string with a comma for decimal"""
     return str(num).replace(".", ",")
@@ -112,7 +104,7 @@ def last_reading() -> str:
 
 
 def fix_timezone(dt: datetime) -> datetime:
-    """A helper function to set the correct timezone"""
+    """A helper function to set the correct timezone on Shiny input filter"""
     return dt.replace(tzinfo=ZoneInfo("UTC")).astimezone(ZoneInfo("Europe/Stockholm"))
 
 
@@ -139,16 +131,20 @@ def get_temps() -> None:
         response = get(url, headers=settings["headers"])
         json_data = json.loads(response.text)
         entities[entity].update({"floor": json_data["attributes"]["friendly_name"]})
-        entities[entity].update({"temp": float(json_data["state"])})
+        entities[entity].update({"temp": round(float(json_data["state"]), 1)})
 
     con = duckdb.connect("db/temps.db")
 
     for sensor, data in entities.items():
         con.sql(
-            f"""INSERT INTO temps (time, floor, temp)
+            f"""INSERT INTO temps (time, floor, temp, hour, date_iso, day, time_trunc)
                     VALUES ('{time}',
                     '{data["floor"]}',
-                    '{data["temp"]}')"""
+                    '{data["temp"]}',
+                    strftime(datetrunc('hour', CAST('{time}' AS TIMESTAMPTZ)), '%H:%M'),
+                    strftime(CAST('{time}' AS TIMESTAMPTZ), '%Y-%m-%d'),
+                    datetrunc('day', CAST('{time}' AS TIMESTAMPTZ)),
+                    datetrunc('hour', CAST('{time}' AS TIMESTAMPTZ)))"""
         )
 
     con.close()

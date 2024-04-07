@@ -112,6 +112,8 @@ plotly==5.20.0
     # via tempapp
 polars==0.20.16
     # via tempapp
+polars-xdt==0.14.12
+    # via tempapp
 prompt-toolkit==3.0.36
     # via ipython
     # via questionary

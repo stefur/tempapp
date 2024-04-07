@@ -18,12 +18,14 @@ dependencies = [
     "faicons>=0.2.2",
     "matplotlib>=3.8.3",
     "requests>=2.31.0",
+    "polars-xdt>=0.14.12",
 ]
 readme = "README.md"
 requires-python = ">= 3.11"
 
 [tool.rye.scripts]
 devserver = "uvicorn tempapp.app:app --host 0.0.0.0 --port 8000 --reload"
+test-get-temps = "python -m tempapp get-temps"
 
 [build-system]
 requires = ["hatchling"]

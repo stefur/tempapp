@@ -4,6 +4,7 @@ from datetime import datetime, timedelta
 import plotly.express as px  # type: ignore[import-untyped]
 import plotly.graph_objects as go  # type: ignore[import-untyped]
 import polars as pl
+import polars_xdt as xdt
 import shinyswatch
 import tempapp.utils as utils  # type: ignore[import-untyped]
 from faicons import icon_svg as icon
@@ -138,7 +139,7 @@ def server(input, output, session):
     @render.ui
     def temp_boxes():
         data = utils.query_db(
-            f"SELECT * FROM temps WHERE DATE_TRUNC('hour', time) = '{utils.fix_timezone(input.time()).strftime("%Y-%m-%d %H:%M:%S")}'"
+            f"SELECT floor, temp FROM temps WHERE time_trunc = '{utils.fix_timezone(input.time()).strftime("%Y-%m-%d %H:%M:%S")}'"
         )  # Fix the timezone in the query, and also format the input so that DuckDB correctly interprets the datetime
 
         # Split data for each floor
@@ -180,19 +181,19 @@ def server(input, output, session):
         )
 
         data = utils.query_db(
-            f"""SELECT * FROM temps
+            f"""SELECT day, hour, temp FROM temps
             WHERE time >= date_trunc('day', (SELECT MAX(time) FROM temps)) - INTERVAL '6' DAY
             AND time <= date_trunc('day', (SELECT MAX(time) FROM temps)) + INTERVAL '1' DAY{floor_filter}"""
         )
 
         avg_temp = (
-            data.with_columns(
-                pl.col("time").dt.truncate("1h").dt.strftime("%H:%M").alias("hour"),
-                pl.col("time").dt.strftime("%Y-%m-%d").alias("date"),
-            )
-            .group_by("date", "hour")
+            data.group_by("day", "hour")
             .agg(pl.col("temp").mean().round(1))
-            .sort("date", "hour")
+            .sort("day", "hour")
+            .with_columns(
+                locale_day=xdt.format_localized(pl.col("day"), "%-d %B", "sv_SE"),
+                date_iso=pl.col("day").dt.strftime("%Y-%m-%d"),
+            )
         )
 
         heatmap = go.FigureWidget()
@@ -200,11 +201,11 @@ def server(input, output, session):
         heatmap.add_trace(
             go.Heatmap(
                 z=avg_temp["temp"],
-                x=avg_temp["date"],
+                x=avg_temp["locale_day"],
                 y=avg_temp["hour"],
                 hoverinfo="text",
                 hovertext=[
-                    f"""Datum: {row["date"]}<br>Tid: {row["hour"]}<br>Temp: {row["temp"]}°C"""
+                    f"""Datum: {row["date_iso"]}<br>Tid: {row["hour"]}<br>Temp: {row["temp"]}°C"""
                     for row in avg_temp.rows(named=True)
                 ],  # Manually create the text for hover labels to avoid showing labels for missing (e.g. future) timestamps
                 colorscale="rdylbu_r",  # Set the color scale (in reverse)
@@ -235,35 +236,28 @@ def server(input, output, session):
     def day_plt() -> go.FigureWidget:
         # Get the latest available from 24 hours back.
         data = utils.query_db(
-            """SELECT * FROM temps
+            """SELECT floor, temp, time_trunc, date_iso, hour FROM temps
             WHERE time >= (SELECT MAX(time) FROM temps)
             - INTERVAL '24' HOUR AND time <= (SELECT MAX(time) FROM temps)"""
-        )
-
-        # TODO
-        # This should be taken care of in db
-        by_hour = data.with_columns(
-            # Note the cast to string being done here - it is due to plotly interpreting all datetime as UTC.
-            pl.col("time").dt.truncate("1h").cast(pl.Utf8).alias("time"),
-            pl.col("time").map_elements(utils.date_conversion).alias("date"),
-            pl.col("time").dt.strftime("%H:%M").alias("hour"),
-            pl.col("temp").round(1).alias("temp"),
+        ).with_columns(
+            pl.col("time_trunc").dt.strftime("%H:%M, %-d/%-m").alias("locale-hour-day"),
         )
 
         house_avg_hour = (
-            by_hour.select("time", "temp")
-            .group_by("time")
+            data.select("locale-hour-day", "temp")
+            .group_by("locale-hour-day")
             .agg(pl.col("temp").mean().round(1).alias("mean"))
-            .sort("time")
+            .sort("locale-hour-day")
         )
 
         plt = go.FigureWidget()
 
         plt.add_trace(
             go.Scatter(
-                x=house_avg_hour["time"],
+                x=house_avg_hour["locale-hour-day"],
                 y=house_avg_hour["mean"],
                 name="Husets medeltemperatur",
+                mode="lines",
                 fill="tozeroy",
                 line=dict(color="rgba(211, 211, 211, 0.8)"),  # Light grey
                 fillcolor="rgba(211, 211, 211, 0.4)",
@@ -284,11 +278,9 @@ def server(input, output, session):
                 fixedrange=True,
                 range=[
                     18
-                    if min(by_hour["temp"]) > 18
-                    else min(
-                        by_hour["temp"]
-                    ),  # Set the minimum value for the color scale
-                    25 if max(by_hour["temp"]) < 24 else max(by_hour["temp"] + 1),
+                    if min(data["temp"]) > 18
+                    else min(data["temp"]),  # Set the minimum value for the color scale
+                    25 if max(data["temp"]) < 24 else max(data["temp"] + 1),
                 ],  # Set the maximum value for the color scale, max(by_hour["temp"] + 1)],
             ),
         )
@@ -297,17 +289,17 @@ def server(input, output, session):
         # and max temps for each timestamp, concating them to a list
         # and pushing them to dicts
         connectors = (
-            by_hour.group_by("time")
+            data.group_by("locale-hour-day")
             .agg(
                 pl.col("temp").max().alias("y_end"),
                 pl.col("temp").min().alias("y_start"),
             )
             .select(
-                pl.col("time"),
+                pl.col("locale-hour-day"),
                 pl.concat_list(pl.col("y_start"), pl.col("y_end")).alias("values"),
             )
             .drop("y_end", "y_start")
-            .sort("time")
+            .sort("locale-hour-day")
             .unique()
             .to_dicts()
         )
@@ -320,7 +312,7 @@ def server(input, output, session):
             plt.add_trace(
                 go.Scatter(
                     y=c["values"],
-                    x=[c["time"], c["time"]],
+                    x=[c["locale-hour-day"], c["locale-hour-day"]],
                     showlegend=False,
                     mode="lines",
                     line=dict(color="darkgray", dash="dot"),
@@ -329,21 +321,21 @@ def server(input, output, session):
             )
 
         # Now split each floor
-        floors = utils.split_floor_data(by_hour)
+        floors = utils.split_floor_data(data)
 
         for floor, df in floors.items():
             # Get the color based on the key index
             color = px.colors.qualitative.Safe[list(floors.keys()).index(floor)]
             plt.add_trace(
                 go.Scatter(
-                    y=df["temp"].round(1),
-                    x=df["time"],
+                    y=df["temp"],
+                    x=df["locale-hour-day"],
                     mode="markers",
                     name=floor,
                     marker=dict(color=color, size=12),
                     hoverinfo="text",
                     hovertext=[
-                        f"""Datum: {row["date"]}<br>Tid: {row["hour"]}<br>Temp: {row["temp"]}°C"""
+                        f"""Datum: {row["date_iso"]}<br>Tid: {row["hour"]}<br>Temp: {row["temp"]}°C"""
                         for row in df.rows(named=True)
                     ],
                 )
@@ -365,20 +357,19 @@ def server(input, output, session):
         )
         # Create a day variable and then group on it to get a mean temp per day
         per_day = (
-            data.with_columns(pl.col("time").dt.truncate("1d").alias("day"))
-            .select("day", "temp", "floor")
+            data.select("day", "temp", "floor")
             .group_by(["day", "floor"])
             .agg(
                 pl.col("temp").mean().round(1).alias("mean"),
                 pl.col("temp").std().alias("std"),
             )
             .with_columns(
-                (pl.col("mean") + pl.col("std")).alias("std_plus"),
-                (pl.col("mean") - pl.col("std")).alias("std_minus"),
+                (pl.col("mean") + pl.col("std")).round(1).alias("std_plus"),
+                (pl.col("mean") - pl.col("std")).round(1).alias("std_minus"),
             )
             .sort(["day", "floor"])
             .with_columns(
-                pl.col("day").map_elements(utils.date_conversion).alias("locale-day")
+                locale_day=xdt.format_localized(pl.col("day"), "%-d %B %Y", "sv_SE")
             )
         )
 
@@ -403,8 +394,8 @@ def server(input, output, session):
             # Must be applied first to allow hovering on the mean line
             time_series.add_trace(
                 go.Scatter(
-                    x=df_in_date["locale-day"].to_list()
-                    + df_in_date["locale-day"].to_list()[::-1],
+                    x=df_in_date["locale_day"].to_list()
+                    + df_in_date["locale_day"].to_list()[::-1],
                     y=df_in_date["std_minus"].to_list()
                     + df_in_date["std_plus"].to_list()[::-1],
                     fill="toself",
@@ -422,7 +413,7 @@ def server(input, output, session):
             # Add the mean as a line
             time_series.add_trace(
                 go.Scatter(
-                    x=df_in_date["locale-day"],
+                    x=df_in_date["locale_day"],
                     y=df_in_date["mean"],
                     name=floor,
                     legendgroup=floor,
