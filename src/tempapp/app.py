@@ -238,23 +238,27 @@ def server(input, output, session):
         data = utils.query_db(
             """SELECT floor, temp, time_trunc, date_iso, hour FROM temps
             WHERE time >= (SELECT MAX(time) FROM temps)
-            - INTERVAL '24' HOUR AND time <= (SELECT MAX(time) FROM temps)"""
+            - INTERVAL '25' HOUR AND time <= (SELECT MAX(time) FROM temps)"""
         ).with_columns(
-            pl.col("time_trunc").dt.strftime("%H:%M, %-d/%-m").alias("locale-hour-day"),
+            locale_hour_day=pl.when(
+                pl.col("hour") == pl.col("time_trunc").min().dt.strftime("%H:%M")
+            )
+            .then(pl.col("time_trunc").dt.strftime("%H:%M - %-d/%-m"))
+            .otherwise(pl.col("hour"))
         )
 
         house_avg_hour = (
-            data.select("locale-hour-day", "temp")
-            .group_by("locale-hour-day")
+            data.select("locale_hour_day", "time_trunc", "temp")
+            .group_by("locale_hour_day", "time_trunc")
             .agg(pl.col("temp").mean().round(1).alias("mean"))
-            .sort("locale-hour-day")
+            .sort("time_trunc", "locale_hour_day")
         )
 
         plt = go.FigureWidget()
 
         plt.add_trace(
             go.Scatter(
-                x=house_avg_hour["locale-hour-day"],
+                x=house_avg_hour["locale_hour_day"],
                 y=house_avg_hour["mean"],
                 name="Husets medeltemperatur",
                 mode="lines",
@@ -289,17 +293,18 @@ def server(input, output, session):
         # and max temps for each timestamp, concating them to a list
         # and pushing them to dicts
         connectors = (
-            data.group_by("locale-hour-day")
+            data.group_by("locale_hour_day", "time_trunc")
             .agg(
                 pl.col("temp").max().alias("y_end"),
                 pl.col("temp").min().alias("y_start"),
             )
             .select(
-                pl.col("locale-hour-day"),
+                pl.col("time_trunc"),
+                pl.col("locale_hour_day"),
                 pl.concat_list(pl.col("y_start"), pl.col("y_end")).alias("values"),
             )
             .drop("y_end", "y_start")
-            .sort("locale-hour-day")
+            .sort("time_trunc", "locale_hour_day")
             .unique()
             .to_dicts()
         )
@@ -312,7 +317,7 @@ def server(input, output, session):
             plt.add_trace(
                 go.Scatter(
                     y=c["values"],
-                    x=[c["locale-hour-day"], c["locale-hour-day"]],
+                    x=[c["locale_hour_day"], c["locale_hour_day"]],
                     showlegend=False,
                     mode="lines",
                     line=dict(color="darkgray", dash="dot"),
@@ -329,7 +334,7 @@ def server(input, output, session):
             plt.add_trace(
                 go.Scatter(
                     y=df["temp"],
-                    x=df["locale-hour-day"],
+                    x=df["locale_hour_day"],
                     mode="markers",
                     name=floor,
                     marker=dict(color=color, size=12),
