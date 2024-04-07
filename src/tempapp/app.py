@@ -222,7 +222,9 @@ def server(input, output, session):
             template="plotly_white",
             title="Medeltemperatur timme för timme",
             yaxis=dict(
-                title="Klockslag", categoryorder="category descending", fixedrange=True
+                categoryorder="category descending",
+                fixedrange=True,
+                dtick=2,
             ),  # Sort the hours correctly
             xaxis=dict(fixedrange=True),
         )
