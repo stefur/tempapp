@@ -239,8 +239,8 @@ def server(input, output, session):
         # Get the latest available from 24 hours back.
         data = utils.query_db(
             """SELECT floor, temp, time_trunc, date_iso, hour FROM temps
-            WHERE time >= (SELECT MAX(time) FROM temps)
-            - INTERVAL '25' HOUR AND time <= (SELECT MAX(time) FROM temps)"""
+            WHERE time_trunc >= (SELECT MAX(time_trunc) FROM temps)
+            - INTERVAL '24' HOUR AND time_trunc <= (SELECT MAX(time_trunc) FROM temps)"""
         ).with_columns(
             locale_hour_day=pl.when(
                 pl.col("hour") == pl.col("time_trunc").min().dt.strftime("%H:%M")
