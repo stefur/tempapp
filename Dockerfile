@@ -1,18 +1,24 @@
-FROM docker.io/python:3.12.2-slim
+FROM docker.io/python:3.12.2-slim as build
 
+ENV DEBIAN_FRONTEND=noninteractive
 ENV TZ=Europe/Stockholm
-ENV PATH=/root/.cargo/bin:$PATH
+ENV UV_SYSTEM_PYTHON=true
+ENV UV_NO_CACHE=true
 
-# Enable Swedish locale
+# Enable Swedish locale and install uv
 RUN apt-get update && apt-get -y install locales
 RUN sed -i '/sv_SE.UTF-8/s/^# //g' /etc/locale.gen && locale-gen
 
-WORKDIR /app
-RUN mkdir build
-COPY . ./build
 RUN pip install uv --no-cache-dir
-RUN cd build && uv pip install --system --no-cache .
-RUN pip uninstall --yes uv
-RUN rm -rf ./build
 
-CMD python -m tempapp run
+WORKDIR /app/build
+COPY requirements.lock .
+RUN sed '/^-e file:/d' requirements.lock > constraints.txt
+RUN uv pip sync constraints.txt
+COPY . .
+RUN uv pip install "tempapp @ ."
+
+WORKDIR /app
+RUN rm -rf build
+
+ENTRYPOINT ["python", "-m", "tempapp", "run"]
