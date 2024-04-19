@@ -1,4 +1,4 @@
-FROM docker.io/python:3.12.2-slim as build
+FROM docker.io/python:3.12.2-slim
 
 ENV DEBIAN_FRONTEND=noninteractive
 ENV TZ=Europe/Stockholm
