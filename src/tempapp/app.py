@@ -7,6 +7,7 @@ import polars as pl
 import polars_xdt as xdt
 import shinyswatch
 import tempapp.utils as utils  # type: ignore[import-untyped]
+from dateutil.relativedelta import relativedelta
 from faicons import icon_svg as icon
 from shiny import App, reactive, render, ui
 from shinywidgets import output_widget, render_widget
@@ -76,8 +77,8 @@ app_ui = ui.page_navbar(
                             language="sv",
                             weekstart=1,
                             separator=" till ",
-                            start=utils.get_max_date() - timedelta(days=30),
-                            end=utils.get_max_date() + timedelta(days=1),
+                            start=utils.get_max_timestamp() - relativedelta(months=1),
+                            end=utils.get_max_timestamp(),
                         ),
                         ui.input_action_button(
                             id="reset", label="Återställ", width="200px"
@@ -102,13 +103,12 @@ def server(input, output, session):
     @render.ui
     def time_slider():
         return (
-            # NOTE The input_slider has a timezone setting but is not adhering to DST, thus using a helper function instead
             ui.input_slider(
                 id="time",
                 label="",
-                min=utils.last_reading() - timedelta(hours=24),
-                max=utils.last_reading(),
-                value=utils.last_reading(),
+                min=utils.get_max_timestamp() - timedelta(hours=24),
+                max=utils.get_max_timestamp(),
+                value=utils.get_max_timestamp(),
                 time_format="%H:%M %-d/%-m",
                 step=timedelta(hours=1),
                 width="100%",
@@ -122,8 +122,8 @@ def server(input, output, session):
         """Reset the date range upon a button click"""
         ui.update_date_range(
             id="daterange",
-            start=utils.get_max_date() - timedelta(days=30),
-            end=utils.get_max_date() + timedelta(days=1),
+            start=utils.get_max_timestamp() - relativedelta(months=1),
+            end=utils.get_max_timestamp(),
         )
 
     @reactive.Effect
@@ -131,8 +131,8 @@ def server(input, output, session):
         """Make sure that the date filter in long term data is properly up to date"""
         ui.update_date_range(
             id="daterange",
-            start=utils.get_max_date() - timedelta(days=30),
-            end=utils.get_max_date() + timedelta(days=1),
+            start=utils.get_max_timestamp() - relativedelta(months=1),
+            end=utils.get_max_timestamp(),
         )
 
     @output

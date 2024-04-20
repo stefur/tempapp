@@ -30,17 +30,13 @@ def query_db(query: str) -> DataFrame:
     return data
 
 
-def get_max_date() -> datetime:
+def get_max_timestamp() -> datetime:
     """Get the max date in the database"""
 
     return (
-        query_db("SELECT MAX(time) AS max_date FROM temps")
-        .with_columns(
-            pl.col("max_date").dt.truncate("1d").alias("max_date"),
-        )
-        .select(pl.col("max_date"))
-        .to_series()
-        .to_list()[0]
+        query_db("SELECT MAX(time_trunc) AS max_timestamp FROM temps")
+        .select(pl.col("max_timestamp"))
+        .item()
     )
 
 
@@ -90,17 +86,6 @@ def determine_temp_scale(temp: int) -> Tuple[int, int]:
     tmax = 25 if temp < 25 else temp  # Set the maximum value for the color scale
 
     return (tmin, tmax)
-
-
-def last_reading() -> str:
-    """Get the timestamp of the last entry in the database"""
-    data = query_db("SELECT * FROM temps WHERE time = (SELECT MAX(time) FROM temps)")
-
-    last_reading = (
-        data.select("time").unique().to_series().dt.truncate("1h").to_list()[0]
-    )
-
-    return last_reading
 
 
 def fix_timezone(dt: datetime) -> datetime:
