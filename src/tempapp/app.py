@@ -358,7 +358,7 @@ def server(input, output, session):
     def long_plt() -> go.FigureWidget:
         # Query the db for data
         data = utils.query_db(
-            f"SELECT * FROM temps WHERE time BETWEEN '{input.daterange()[0]}' AND '{input.daterange()[1]}'"
+            f"SELECT * FROM temps WHERE time BETWEEN '{input.daterange()[0]}' AND '{input.daterange()[1] + timedelta(days=1)}'"
         )
         # Create a day variable and then group on it to get a mean temp per day
         per_day = (
