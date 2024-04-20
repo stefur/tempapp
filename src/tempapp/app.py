@@ -405,6 +405,7 @@ def server(input, output, session):
                     y=df_in_date["std_minus"].to_list()
                     + df_in_date["std_plus"].to_list()[::-1],
                     fill="toself",
+                    line={"shape": "spline", "smoothing": 1.0},
                     fillcolor="rgba(136,139,141,0.2)",
                     line_color="rgba(255,255,255,0)",
                     showlegend=False,
