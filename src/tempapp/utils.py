@@ -61,7 +61,7 @@ def set_plotly_config(fig: go.FigureWidget, **kwargs) -> go.FigureWidget:
 def split_floor_data(df: pl.DataFrame) -> dict[str, pl.DataFrame]:
     """Split any df for each floor. Useful for plotting stuff"""
     # The names of each floor in a list
-    floors = df.select(pl.col("floor")).unique().to_series().sort().to_list()
+    floors = df.select(pl.col("floor")).unique().to_series().sort()
 
     # Produce 3 different dataframes, 1 for each floor, so we can plot it easily
     return {floor: df.filter(pl.col("floor") == floor) for floor in floors}

@@ -149,8 +149,7 @@ def server(input, output, session):
         floor_temps = {
             floor: df.with_columns(pl.col("temp").round(1).alias("temp"))
             .select("temp")
-            .to_series()
-            .to_list()[0]
+            .item()
             for floor, df in floors.items()
         }
 
@@ -380,7 +379,7 @@ def server(input, output, session):
         )
 
         # The names of each floor in a list
-        floors = data.select(pl.col("floor")).unique().to_series().sort().to_list()
+        floors = data.select(pl.col("floor")).unique().to_series().sort()
 
         # Produce 3 different dataframes, 1 for each floor, so we can plot it easily
         floors_avg = {
