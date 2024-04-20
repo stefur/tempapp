@@ -1,6 +1,5 @@
 import json
 from datetime import datetime
-from typing import Tuple
 
 import duckdb
 import matplotlib
@@ -69,23 +68,21 @@ def split_floor_data(df: pl.DataFrame) -> dict[str, pl.DataFrame]:
 
 
 def determine_bg_color(temp: int) -> str:
-    temp_scale = determine_temp_scale(temp)
+    """Sets the background color scale according to temperature"""
+    tmin, tmax = (
+        18 if temp > 18 else temp,
+        # Set the minimum value for the color scale
+        25 if temp < 25 else temp,
+    )  # Set the maximum value for the color scale
 
     # Map the value to a color using interpolate
-    norm = matplotlib.colors.Normalize(vmin=temp_scale[0], vmax=temp_scale[1])
+    norm = matplotlib.colors.Normalize(vmin=tmin, vmax=tmax)
 
     cmap = matplotlib.colormaps["RdYlBu_r"]
 
     mapped_color = matplotlib.colors.to_hex(cmap(norm(temp)))
 
     return mapped_color
-
-
-def determine_temp_scale(temp: int) -> Tuple[int, int]:
-    tmin = 18 if temp > 18 else temp  # Set the minimum value for the color scale
-    tmax = 25 if temp < 25 else temp  # Set the maximum value for the color scale
-
-    return (tmin, tmax)
 
 
 def fix_timezone(dt: datetime) -> datetime:

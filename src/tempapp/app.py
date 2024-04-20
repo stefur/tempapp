@@ -161,7 +161,6 @@ def server(input, output, session):
                 ui.card(
                     floor,
                     ui.h2(utils.dot_to_comma(temp)),
-                    # theme="yellow" if temp > 18 else "red" if temp > 25 else "blue",
                 ).add_style(f"background-color:{utils.determine_bg_color(temp)};")
                 for floor, temp in floor_temps.items()
             ],
