@@ -182,8 +182,8 @@ def server(input, output, session):
 
         data = utils.query_db(
             f"""SELECT day, hour, temp FROM temps
-            WHERE time >= date_trunc('day', (SELECT MAX(time) FROM temps)) - INTERVAL '6' DAY
-            AND time <= date_trunc('day', (SELECT MAX(time) FROM temps)) + INTERVAL '1' DAY{floor_filter}"""
+            WHERE time_trunc >= date_trunc('day', (SELECT MAX(time_trunc) FROM temps)) - INTERVAL '6' DAY
+            AND time_trunc <= date_trunc('day', (SELECT MAX(time_trunc) FROM temps)) + INTERVAL '1' DAY{floor_filter}"""
         )
 
         avg_temp = (
