@@ -16,7 +16,6 @@ from shinywidgets import output_widget, render_widget
 locale.setlocale(locale.LC_ALL, "sv_SE.utf-8")
 
 app_ui = ui.page_navbar(
-    shinyswatch.theme.simplex(),
     ui.nav_panel(
         "Dashboard",
         ui.page_fluid(
@@ -90,6 +89,7 @@ app_ui = ui.page_navbar(
         ),
     ),
     title="TempApp",
+    theme=shinyswatch.theme.simplex(),
 )
 
 
@@ -303,7 +303,6 @@ def server(input, output, session):
                 pl.col("locale_hour_day"),
                 pl.concat_list(pl.col("y_start"), pl.col("y_end")).alias("values"),
             )
-            .drop("y_end", "y_start")
             .sort("time_trunc", "locale_hour_day")
             .unique()
             .to_dicts()
