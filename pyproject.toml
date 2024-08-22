@@ -23,25 +23,17 @@ dependencies = [
 readme = "README.md"
 requires-python = ">= 3.11"
 
-[tool.rye.scripts]
-devserver = "uvicorn tempapp.app:app --host 0.0.0.0 --port 8000 --reload"
-test-get-temps = "python -m tempapp get-temps"
-
 [build-system]
 requires = ["hatchling"]
 build-backend = "hatchling.build"
 
-[tool.rye]
-managed = true
+[tool.uv]
 dev-dependencies = [
     "types-requests>=2.32.0.20240712",
     "ipykernel>=6.29.3",
     "types-pytz>=2024.1.0.20240203",
     "types-python-dateutil>=2.9.0.20240316",
 ]
-
-[tool.hatch.metadata]
-allow-direct-references = true
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/tempapp"]
