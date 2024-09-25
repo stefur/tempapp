@@ -366,7 +366,7 @@ def server(input, output, session):
             .group_by(["day", "floor"])
             .agg(
                 pl.col("temp").mean().round(1).alias("mean"),
-                pl.col("temp").std().alias("std"),
+                pl.col("temp").std().fill_null(0).alias("std"),
             )
             .with_columns(
                 (pl.col("mean") + pl.col("std")).round(1).alias("std_plus"),
