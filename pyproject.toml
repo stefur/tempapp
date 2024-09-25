@@ -14,11 +14,11 @@ dependencies = [
     "duckdb>=0.10.0",
     "plotly>=5.19.0",
     "pandas>=2.2.1",
-    "pyarrow>=15.0.0",
     "faicons>=0.2.2",
     "matplotlib>=3.8.3",
     "requests>=2.31.0",
     "polars-xdt>=0.14.12",
+    "pyarrow>=17.0.0",
 ]
 readme = "README.md"
 requires-python = ">= 3.11"
@@ -26,6 +26,9 @@ requires-python = ">= 3.11"
 [build-system]
 requires = ["hatchling"]
 build-backend = "hatchling.build"
+
+[project.scripts]
+tempapp = "tempapp.main:main"
 
 [tool.uv]
 dev-dependencies = [

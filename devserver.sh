@@ -1,2 +1,3 @@
 #!/bin/bash
-uv run -- uvicorn tempapp.app:app --host 0.0.0.0 --port 8000 --reload
+docker build -t tempapp:dev .
+docker run --rm -p 8000:8000 -v ./db/temps.db:/data/temps.db --name tempapp tempapp:dev
