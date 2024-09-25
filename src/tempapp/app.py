@@ -6,11 +6,12 @@ import plotly.graph_objects as go  # type: ignore[import-untyped]
 import polars as pl
 import polars_xdt as xdt
 import shinyswatch
-import tempapp.utils as utils  # type: ignore[import-untyped]
 from dateutil.relativedelta import relativedelta
 from faicons import icon_svg as icon
 from shiny import App, reactive, render, ui
 from shinywidgets import output_widget, render_widget
+
+import tempapp.utils as utils  # type: ignore[import-untyped]
 
 # Set the locale
 locale.setlocale(locale.LC_ALL, "sv_SE.utf-8")

@@ -18,13 +18,8 @@ def dot_to_comma(num: float) -> str:
 def query_db(query: str) -> DataFrame:
     """Query the database and return a dataframe with the result"""
     # Connect to the db
-    con = duckdb.connect("db/temps.db")
-
-    # Query all the data and push it to a polars frame
-    data = con.sql(query).pl()
-
-    # Close the connection
-    con.close()
+    with duckdb.connect("/data/temps.db", read_only=True) as con:
+        data = con.sql(query).pl()
 
     return data
 
@@ -32,11 +27,7 @@ def query_db(query: str) -> DataFrame:
 def get_max_timestamp() -> datetime:
     """Get the max date in the database"""
 
-    return (
-        query_db("SELECT MAX(time_trunc) AS max_timestamp FROM temps")
-        .select(pl.col("max_timestamp"))
-        .item()
-    )
+    return query_db("SELECT MAX(time_trunc) AS max_timestamp FROM temps").item()
 
 
 def set_plotly_config(fig: go.FigureWidget, **kwargs) -> go.FigureWidget:
@@ -115,18 +106,15 @@ def get_temps() -> None:
         entities[entity].update({"floor": json_data["attributes"]["friendly_name"]})
         entities[entity].update({"temp": round(float(json_data["state"]), 1)})
 
-    con = duckdb.connect("db/temps.db")
-
-    for sensor, data in entities.items():
-        con.sql(
-            f"""INSERT INTO temps (time, floor, temp, hour, date_iso, day, time_trunc)
-                    VALUES ('{time}',
-                    '{data["floor"]}',
-                    '{data["temp"]}',
-                    strftime(datetrunc('hour', CAST('{time}' AS TIMESTAMPTZ)), '%H:%M'),
-                    strftime(CAST('{time}' AS TIMESTAMPTZ), '%Y-%m-%d'),
-                    datetrunc('day', CAST('{time}' AS TIMESTAMPTZ)),
-                    datetrunc('hour', CAST('{time}' AS TIMESTAMPTZ)))"""
-        )
-
-    con.close()
+    with duckdb.connect("/data/temps.db") as con:
+        for sensor, data in entities.items():
+            con.sql(
+                f"""INSERT INTO temps (time, floor, temp, hour, date_iso, day, time_trunc)
+                        VALUES ('{time}',
+                        '{data["floor"]}',
+                        '{data["temp"]}',
+                        strftime(datetrunc('hour', CAST('{time}' AS TIMESTAMPTZ)), '%H:%M'),
+                        strftime(CAST('{time}' AS TIMESTAMPTZ), '%Y-%m-%d'),
+                        datetrunc('day', CAST('{time}' AS TIMESTAMPTZ)),
+                        datetrunc('hour', CAST('{time}' AS TIMESTAMPTZ)))"""
+            )
