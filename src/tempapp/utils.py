@@ -83,7 +83,7 @@ def fix_timezone(dt: datetime) -> datetime:
 
 def get_temps() -> None:
     """Load the server settings and ask the API for temps to update the db"""
-    with open("settings.json", "r") as file:
+    with open("/app/settings.json", "r") as file:
         settings = json.load(file)
 
     # Sensors
