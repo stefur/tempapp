@@ -2,18 +2,26 @@ import sys
 
 import uvicorn
 
-from tempapp.app import app  # type: ignore[import-untyped]
 from tempapp.utils import get_temps  # type: ignore[import-untyped]
 
 
 def main():
     if len(sys.argv) < 2:
-        print("Usage: tempapp [run | get-temps]")
+        print("Usage: tempapp [run | get-temps | version]")
         sys.exit(1)
+
+    command, *args = sys.argv[1:]
+    dev = "dev" if "dev" in args else None
 
     command = sys.argv[1]
     if command == "run":
-        uvicorn.run(app, host="0.0.0.0", port=8000)
+        uvicorn.run(
+            "tempapp.app:app",
+            host="0.0.0.0",
+            port=8000,
+            reload=True if dev == "dev" else False,
+            reload_dirs=["src/tempapp"] if dev else None,
+        )
     elif command == "get-temps":
         get_temps()
     else:

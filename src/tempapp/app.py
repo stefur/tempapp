@@ -140,7 +140,7 @@ def server(input, output, session):
     @render.ui
     def temp_boxes():
         data = utils.query_db(
-            f"SELECT floor, temp FROM temps WHERE time_trunc = '{utils.fix_timezone(input.time()).strftime("%Y-%m-%d %H:%M:%S")}'"
+            f"""SELECT floor, temp FROM temps WHERE time_trunc = '{utils.fix_timezone(input.time()).strftime("%Y-%m-%d %H:%M:%S")}'"""
         )  # Fix the timezone in the query, and also format the input so that DuckDB correctly interprets the datetime
 
         # Split data for each floor
