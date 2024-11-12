@@ -90,7 +90,7 @@ app_ui = ui.page_navbar(
         ),
     ),
     title="TempApp",
-    theme=shinyswatch.theme.simplex(),
+    theme=shinyswatch.theme.materia(),
 )
 
 
@@ -161,8 +161,11 @@ def server(input, output, session):
                 ui.card(
                     floor,
                     ui.h2(utils.dot_to_comma(temp)),
-                ).add_style(f"background-color:{utils.determine_bg_color(temp)};")
+                ).add_style(f"background-color:{bg_color};color:{fg_color};")
                 for floor, temp in floor_temps.items()
+                if (colors := utils.determine_colors(temp))
+                and (bg_color := colors[0])
+                and (fg_color := colors[1])
             ],
             fixed_width=True,
         )
@@ -224,8 +227,9 @@ def server(input, output, session):
                 categoryorder="category descending",
                 fixedrange=True,
                 dtick=2,
+                showgrid=False,
             ),  # Sort the hours correctly
-            xaxis=dict(fixedrange=True),
+            xaxis=dict(fixedrange=True, showgrid=False),
         )
 
         result = utils.set_plotly_config(heatmap)
@@ -346,6 +350,17 @@ def server(input, output, session):
                 )
             )
 
+        plt.add_shape(
+            type="line",
+            x0=data["locale_hour_day"].first(),
+            x1=data[
+                "locale_hour_day"
+            ].last(),  # Line spans across the x-axis, assuming the data is ordered
+            y0=21,
+            y1=21,  # Temperature threshold
+            line=dict(color="Red", width=1, dash="dash"),
+        )
+
         # Disable all clicking on traces for this plot as it doesn't make much sense here
         plt.update_layout(legend_itemclick=False, legend_itemdoubleclick=False)
 
@@ -441,6 +456,17 @@ def server(input, output, session):
             # Don't allow zooming any axes
             xaxis=dict(fixedrange=True),
             yaxis=dict(fixedrange=True),
+        )
+
+        time_series.add_shape(
+            type="line",
+            x0=per_day["locale_day"].first(),
+            x1=per_day[
+                "locale_day"
+            ].last(),  # Line spans across the x-axis, assuming the data is ordered
+            y0=21,
+            y1=21,  # Temperature threshold
+            line=dict(color="Red", width=1, dash="dash"),
         )
 
         # Fix the axes

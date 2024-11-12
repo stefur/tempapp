@@ -1,5 +1,6 @@
 import json
 from datetime import datetime
+from typing import Tuple
 
 import duckdb
 import matplotlib
@@ -58,8 +59,8 @@ def split_floor_data(df: pl.DataFrame) -> dict[str, pl.DataFrame]:
     return {floor: df.filter(pl.col("floor") == floor) for floor in floors}
 
 
-def determine_bg_color(temp: int) -> str:
-    """Sets the background color scale according to temperature"""
+def determine_colors(temp: int) -> Tuple[str, str]:
+    """Sets the background and foreground color according to temperature"""
     tmin, tmax = (
         18 if temp > 18 else temp,
         # Set the minimum value for the color scale
@@ -71,9 +72,47 @@ def determine_bg_color(temp: int) -> str:
 
     cmap = matplotlib.colormaps["RdYlBu_r"]
 
-    mapped_color = matplotlib.colors.to_hex(cmap(norm(temp)))
+    bg_color = matplotlib.colors.to_hex(cmap(norm(temp)))
 
-    return mapped_color
+    # Get RGB from the hex
+    r_bg, g_bg, b_bg = (
+        int(bg_color[1:3], 16),
+        int(bg_color[3:5], 16),
+        int(bg_color[5:7], 16),
+    )
+
+    # Default text colors to use depending on the background
+    text_colors = {
+        "#FFFFFF": (255, 255, 255),
+        "#000000": (0, 0, 0),
+    }
+
+    # Check which text color to use based on the W3C algorithm
+
+    # Calculate brightness
+    def brightness(r, g, b):
+        return (r * 299 + g * 587 + b * 114) / 1000
+
+    # Calculate color difference
+    def color_difference(color1, color2):
+        return sum(abs(c1 - c2) for c1, c2 in zip(color1, color2))
+
+    # Calculate brightness and color difference for each text color
+    bg_brightness = brightness(r_bg, g_bg, b_bg)
+    best_fg_color = "#000000"  # default to black fg_color
+
+    # Check which color is best given the background
+    for fg_color_hex, (r_fg, g_fg, b_fg) in text_colors.items():
+        fg_brightness = brightness(r_fg, g_fg, b_fg)
+        brightness_diff = abs(bg_brightness - fg_brightness)
+        color_diff = color_difference((r_bg, g_bg, b_bg), (r_fg, g_fg, b_fg))
+
+        # If both brightness and color difference criteria are met, select this text color
+        if brightness_diff >= 125 and color_diff >= 500:
+            best_fg_color = "#FFFFFF"
+            break
+
+    return bg_color, best_fg_color
 
 
 def fix_timezone(dt: datetime) -> datetime:
