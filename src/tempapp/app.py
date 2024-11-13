@@ -350,15 +350,10 @@ def server(input, output, session):
                 )
             )
 
-        plt.add_shape(
-            type="line",
-            x0=data["locale_hour_day"].first(),
-            x1=data[
-                "locale_hour_day"
-            ].last(),  # Line spans across the x-axis, assuming the data is ordered
-            y0=21,
-            y1=21,  # Temperature threshold
-            line=dict(color="Red", width=1, dash="dash"),
+        plt = utils.add_threshold_lines(
+            plt,
+            xmin=data["locale_hour_day"].first(),
+            xmax=data["locale_hour_day"].last(),
         )
 
         # Disable all clicking on traces for this plot as it doesn't make much sense here
@@ -458,15 +453,10 @@ def server(input, output, session):
             yaxis=dict(fixedrange=True),
         )
 
-        time_series.add_shape(
-            type="line",
-            x0=per_day["locale_day"].first(),
-            x1=per_day[
-                "locale_day"
-            ].last(),  # Line spans across the x-axis, assuming the data is ordered
-            y0=21,
-            y1=21,  # Temperature threshold
-            line=dict(color="Red", width=1, dash="dash"),
+        time_series = utils.add_threshold_lines(
+            time_series,
+            xmin=per_day["locale_day"].first(),
+            xmax=per_day["locale_day"].last(),
         )
 
         # Fix the axes

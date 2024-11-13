@@ -1,6 +1,6 @@
 import json
 from datetime import datetime
-from typing import Tuple
+from typing import Any, Tuple
 
 import duckdb
 import matplotlib
@@ -48,6 +48,26 @@ def set_plotly_config(fig: go.FigureWidget, **kwargs) -> go.FigureWidget:
     fig._config = fig._config | config_defaults
 
     return fig
+
+
+def add_threshold_lines(plt: go.FigureWidget, xmin: Any, xmax: Any) -> go.FigureWidget:
+    """Add two horizontal lines to as temperature thresholds"""
+
+    return plt.add_shape(
+        type="line",
+        x0=xmin,
+        x1=xmax,
+        y0=24,
+        y1=24,
+        line=dict(color="Red", width=1, dash="dash"),
+    ).add_shape(
+        type="line",
+        x0=xmin,
+        x1=xmax,
+        y0=21,
+        y1=21,
+        line=dict(color="Blue", width=1, dash="dash"),
+    )
 
 
 def split_floor_data(df: pl.DataFrame) -> dict[str, pl.DataFrame]:
@@ -99,7 +119,7 @@ def determine_colors(temp: int) -> Tuple[str, str]:
 
     # Calculate brightness and color difference for each text color
     bg_brightness = brightness(r_bg, g_bg, b_bg)
-    best_fg_color = "#000000"  # default to black fg_color
+    best_fg_color = "#FFFFFF"  # default to white fg_color
 
     # Check which color is best given the background
     for fg_color_hex, (r_fg, g_fg, b_fg) in text_colors.items():
@@ -109,7 +129,7 @@ def determine_colors(temp: int) -> Tuple[str, str]:
 
         # If both brightness and color difference criteria are met, select this text color
         if brightness_diff >= 125 and color_diff >= 500:
-            best_fg_color = "#FFFFFF"
+            best_fg_color = "#000000"
             break
 
     return bg_color, best_fg_color
