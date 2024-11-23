@@ -23,10 +23,10 @@ def query_db(
     return connection.execute(query, params).pl()
 
 
-def create_connection() -> DuckDBPyConnection:
+def create_connection(read_only=True) -> DuckDBPyConnection:
     """Set up a connection to the DuckDB database"""
     return connect(
-        "/data/temps.db", read_only=True, config={"enable_external_access": False}
+        "/data/temps.db", read_only=read_only, config={"enable_external_access": False}
     )
 
 
@@ -175,7 +175,7 @@ def get_temps() -> None:
         for data in entities.values()
     ]
 
-    with create_connection() as con:
+    with create_connection(read_only=False) as con:
         con.executemany(
             """INSERT INTO temps (time, floor, temp, hour, date_iso, day, time_trunc)
                         VALUES ($time,
