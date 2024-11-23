@@ -1,14 +1,14 @@
 import json
 from datetime import datetime
 from typing import Any, Tuple
+from zoneinfo import ZoneInfo
 
-import duckdb
-import matplotlib
-import plotly.graph_objects as go  # type: ignore[import-untyped]
+import plotly.graph_objects as go
 import polars as pl
+from duckdb import DuckDBPyConnection, connect
+from matplotlib import colormaps, colors
 from polars import DataFrame
 from requests import get
-from zoneinfo import ZoneInfo
 
 
 def dot_to_comma(num: float) -> str:
@@ -16,22 +16,23 @@ def dot_to_comma(num: float) -> str:
     return str(num).replace(".", ",")
 
 
-def query_db(query: str) -> DataFrame:
+def query_db(
+    connection: DuckDBPyConnection, query: str, **params: dict[str, Any] | str
+) -> DataFrame:
     """Query the database and return a dataframe with the result"""
-    # Connect to the db
-    with duckdb.connect("/data/temps.db", read_only=True) as con:
-        data = con.sql(query).pl()
-
-    return data
+    return connection.execute(query, params).pl()
 
 
-def get_max_timestamp() -> datetime:
-    """Get the max date in the database"""
+def create_connection() -> DuckDBPyConnection:
+    """Set up a connection to the DuckDB database"""
+    return connect(
+        "/data/temps.db", read_only=True, config={"enable_external_access": False}
+    )
 
-    return query_db("SELECT MAX(time_trunc) AS max_timestamp FROM temps").item()
 
-
-def set_plotly_config(fig: go.FigureWidget, **kwargs) -> go.FigureWidget:
+def set_plotly_config(
+    fig: go.FigureWidget, **kwargs: dict[str, Any]
+) -> go.FigureWidget:
     """Apply default config options as well as any optionals"""
     # This is a workaround:
     # https://github.com/plotly/plotly.py/issues/1074#issuecomment-1471486307
@@ -88,11 +89,11 @@ def determine_colors(temp: int) -> Tuple[str, str]:
     )  # Set the maximum value for the color scale
 
     # Map the value to a color using interpolate
-    norm = matplotlib.colors.Normalize(vmin=tmin, vmax=tmax)
+    norm = colors.Normalize(vmin=tmin, vmax=tmax)
 
-    cmap = matplotlib.colormaps["RdYlBu_r"]
+    cmap = colormaps["RdYlBu_r"]
 
-    bg_color = matplotlib.colors.to_hex(cmap(norm(temp)))
+    bg_color = colors.to_hex(cmap(norm(temp)))
 
     # Get RGB from the hex
     r_bg, g_bg, b_bg = (
@@ -165,15 +166,24 @@ def get_temps() -> None:
         entities[entity].update({"floor": json_data["attributes"]["friendly_name"]})
         entities[entity].update({"temp": round(float(json_data["state"]), 1)})
 
-    with duckdb.connect("/data/temps.db") as con:
-        for sensor, data in entities.items():
-            con.sql(
-                f"""INSERT INTO temps (time, floor, temp, hour, date_iso, day, time_trunc)
-                        VALUES ('{time}',
-                        '{data["floor"]}',
-                        '{data["temp"]}',
-                        strftime(datetrunc('hour', CAST('{time}' AS TIMESTAMPTZ)), '%H:%M'),
-                        strftime(CAST('{time}' AS TIMESTAMPTZ), '%Y-%m-%d'),
-                        datetrunc('day', CAST('{time}' AS TIMESTAMPTZ)),
-                        datetrunc('hour', CAST('{time}' AS TIMESTAMPTZ)))"""
-            )
+    rows = [
+        {
+            "time": time,
+            "floor": data["floor"],
+            "temp": data["temp"],
+        }
+        for data in entities.values()
+    ]
+
+    with create_connection() as con:
+        con.executemany(
+            """INSERT INTO temps (time, floor, temp, hour, date_iso, day, time_trunc)
+                        VALUES ($time,
+                        $floor,
+                        $temp,
+                        strftime(datetrunc('hour', CAST($time AS TIMESTAMPTZ)), '%H:%M'),
+                        strftime(CAST($time AS TIMESTAMPTZ), '%Y-%m-%d'),
+                        datetrunc('day', CAST($time AS TIMESTAMPTZ)),
+                        datetrunc('hour', CAST($time AS TIMESTAMPTZ)))""",
+            rows,
+        )

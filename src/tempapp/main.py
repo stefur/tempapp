@@ -2,7 +2,7 @@ import sys
 
 import uvicorn
 
-from tempapp.utils import get_temps  # type: ignore[import-untyped]
+from tempapp.utils import get_temps
 
 
 def main():

@@ -1,8 +1,9 @@
 import locale
+import logging
 from datetime import datetime, timedelta
 
-import plotly.express as px  # type: ignore[import-untyped]
-import plotly.graph_objects as go  # type: ignore[import-untyped]
+import plotly.express as px
+import plotly.graph_objects as go
 import polars as pl
 import polars_xdt as xdt
 import shinyswatch
@@ -11,10 +12,13 @@ from faicons import icon_svg as icon
 from shiny import App, reactive, render, ui
 from shinywidgets import output_widget, render_widget
 
-import tempapp.utils as utils  # type: ignore[import-untyped]
+import tempapp.utils as utils
 
 # Set the locale
 locale.setlocale(locale.LC_ALL, "sv_SE.utf-8")
+
+# Tap into the uvicorn logging
+logger = logging.getLogger("uvicorn.error")
 
 app_ui = ui.page_navbar(
     ui.nav_panel(
@@ -77,8 +81,6 @@ app_ui = ui.page_navbar(
                             language="sv",
                             weekstart=1,
                             separator=" till ",
-                            start=utils.get_max_timestamp() - relativedelta(months=1),
-                            end=utils.get_max_timestamp(),
                         ),
                         ui.input_action_button(
                             id="reset", label="Återställ", width="200px"
@@ -95,6 +97,20 @@ app_ui = ui.page_navbar(
 
 
 def server(input, output, session):
+    logger.info("New session began at: " + datetime.now().strftime("%H:%M:%S"))
+    logger.info("Setting up connection to database.")
+    connection = utils.create_connection()
+
+    max_timestamp: datetime = utils.query_db(
+        connection, "SELECT MAX(time_trunc) AS max_timestamp FROM temps"
+    ).item()
+
+    @session.on_ended
+    def close_connection():
+        logger.info("Session ended at: " + datetime.now().strftime("%H:%M:%S"))
+        connection.close()
+        logger.info("Closed connection to database.")
+
     @output
     @render.text
     def status_right_now():
@@ -107,9 +123,9 @@ def server(input, output, session):
             ui.input_slider(
                 id="time",
                 label="",
-                min=utils.get_max_timestamp() - timedelta(hours=24),
-                max=utils.get_max_timestamp(),
-                value=utils.get_max_timestamp(),
+                min=max_timestamp - timedelta(hours=24),
+                max=max_timestamp,
+                value=max_timestamp,
                 time_format="%H:%M %-d/%-m",
                 step=timedelta(hours=1),
                 width="100%",
@@ -120,27 +136,29 @@ def server(input, output, session):
     @reactive.effect
     @reactive.event(input.reset)
     def reset_date_filter():
-        """Reset the date range upon a button click"""
+        """Reset the date range upon a button click and ensure the filter is up to date"""
         ui.update_date_range(
             id="daterange",
-            start=utils.get_max_timestamp() - relativedelta(months=1),
-            end=utils.get_max_timestamp(),
+            start=max_timestamp - relativedelta(months=1),
+            end=max_timestamp,
         )
 
-    @reactive.Effect
+    @reactive.effect
     def _():
         """Make sure that the date filter in long term data is properly up to date"""
         ui.update_date_range(
             id="daterange",
-            start=utils.get_max_timestamp() - relativedelta(months=1),
-            end=utils.get_max_timestamp(),
+            start=max_timestamp - relativedelta(months=1),
+            end=max_timestamp,
         )
 
     @output
     @render.ui
     def temp_boxes():
         data = utils.query_db(
-            f"""SELECT floor, temp FROM temps WHERE time_trunc = '{utils.fix_timezone(input.time()).strftime("%Y-%m-%d %H:%M:%S")}'"""
+            connection,
+            """SELECT floor, temp FROM temps WHERE time_trunc = $time""",
+            time=utils.fix_timezone(input.time()).strftime("%Y-%m-%d %H:%M:%S"),
         )  # Fix the timezone in the query, and also format the input so that DuckDB correctly interprets the datetime
 
         # Split data for each floor
@@ -176,16 +194,20 @@ def server(input, output, session):
         # Get the latest available from the last 7 days by truncating the timestamp
         # to make sure we get full days of data.
 
-        floor_filter: str = (
-            ""
-            if input.select_floor() == "Huset"
-            else f" AND floor = '{input.select_floor()}'"
-        )
+        selection = input.select_floor()
+        floor_filter: str = "" if selection == "Huset" else " AND floor = $floor"
+
+        params = {"floor": selection} if selection != "Huset" else {}
 
         data = utils.query_db(
-            f"""SELECT day, hour, temp FROM temps
+            connection,
+            f"""--sql 
+            SELECT day, hour, temp FROM temps
             WHERE time_trunc >= date_trunc('day', (SELECT MAX(time_trunc) FROM temps)) - INTERVAL '6' DAY
-            AND time_trunc <= date_trunc('day', (SELECT MAX(time_trunc) FROM temps)) + INTERVAL '1' DAY{floor_filter}"""
+            AND time_trunc <= date_trunc('day', (SELECT MAX(time_trunc) FROM temps)) + INTERVAL '1' DAY
+            {floor_filter}
+            """,
+            **params,
         )
 
         avg_temp = (
@@ -241,9 +263,10 @@ def server(input, output, session):
     def day_plt() -> go.FigureWidget:
         # Get the latest available from 24 hours back.
         data = utils.query_db(
+            connection,
             """SELECT floor, temp, time_trunc, date_iso, hour FROM temps
             WHERE time_trunc >= (SELECT MAX(time_trunc) FROM temps)
-            - INTERVAL '24' HOUR AND time_trunc <= (SELECT MAX(time_trunc) FROM temps)"""
+            - INTERVAL '24' HOUR AND time_trunc <= (SELECT MAX(time_trunc) FROM temps)""",
         ).with_columns(
             locale_hour_day=pl.when(
                 pl.col("hour") == pl.col("time_trunc").min().dt.strftime("%H:%M")
@@ -366,10 +389,17 @@ def server(input, output, session):
     @output
     @render_widget
     def long_plt() -> go.FigureWidget:
+        if not input.daterange() or len(input.daterange()) < 2:
+            raise ValueError("Invalid date range")
+
         # Query the db for data
         data = utils.query_db(
-            f"SELECT * FROM temps WHERE time BETWEEN '{input.daterange()[0]}' AND '{input.daterange()[1] + timedelta(days=1)}'"
+            connection,
+            """SELECT * FROM temps WHERE time BETWEEN $start AND $end""",
+            start=input.daterange()[0],
+            end=input.daterange()[1] + timedelta(days=1),
         )
+
         # Create a day variable and then group on it to get a mean temp per day
         per_day = (
             data.select("day", "temp", "floor")
