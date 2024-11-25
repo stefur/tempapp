@@ -1,14 +1,11 @@
-import json
 from datetime import datetime
 from typing import Any, Tuple
 from zoneinfo import ZoneInfo
 
 import plotly.graph_objects as go
 import polars as pl
-from duckdb import DuckDBPyConnection, connect
 from matplotlib import colormaps, colors
 from polars import DataFrame
-from requests import get
 
 
 def dot_to_comma(num: float) -> str:
@@ -16,17 +13,17 @@ def dot_to_comma(num: float) -> str:
     return str(num).replace(".", ",")
 
 
-def query_db(
-    connection: DuckDBPyConnection, query: str, **params: dict[str, Any] | str
-) -> DataFrame:
-    """Query the database and return a dataframe with the result"""
-    return connection.execute(query, params).pl()
-
-
-def create_connection(read_only=True) -> DuckDBPyConnection:
-    """Set up a connection to the DuckDB database"""
-    return connect(
-        "/data/temps.db", read_only=read_only, config={"enable_external_access": False}
+def load_data() -> DataFrame:
+    """Loads data for use in the app"""
+    return pl.read_parquet("/data/temps.parquet").with_columns(
+        [
+            pl.col("time_trunc")
+            .dt.replace_time_zone("UTC")
+            .dt.convert_time_zone("Europe/Stockholm"),
+            pl.col("time")
+            .dt.replace_time_zone("UTC")
+            .dt.convert_time_zone("Europe/Stockholm"),
+        ]
     )
 
 
@@ -139,51 +136,3 @@ def determine_colors(temp: int) -> Tuple[str, str]:
 def fix_timezone(dt: datetime) -> datetime:
     """A helper function to set the correct timezone on Shiny input filter"""
     return dt.replace(tzinfo=ZoneInfo("UTC")).astimezone(ZoneInfo("Europe/Stockholm"))
-
-
-def get_temps() -> None:
-    """Load the server settings and ask the API for temps to update the db"""
-    with open("/app/settings.json", "r") as file:
-        settings = json.load(file)
-
-    # Sensors
-    entities = {
-        # 1
-        "temperature_10": {"floor": "", "temp": int},
-        # 2
-        "temperature_13": {"floor": "", "temp": int},
-        # 3
-        "temperature_16": {"floor": "", "temp": int},
-    }
-
-    time = datetime.now(tz=ZoneInfo("Europe/Stockholm"))
-
-    for entity in entities.keys():
-        url = f"""http://{settings["server"]["ip"]}:{settings["server"]["port"]}/api/states/sensor.{entity}"""
-
-        response = get(url, headers=settings["headers"])
-        json_data = json.loads(response.text)
-        entities[entity].update({"floor": json_data["attributes"]["friendly_name"]})
-        entities[entity].update({"temp": round(float(json_data["state"]), 1)})
-
-    rows = [
-        {
-            "time": time,
-            "floor": data["floor"],
-            "temp": data["temp"],
-        }
-        for data in entities.values()
-    ]
-
-    with create_connection(read_only=False) as con:
-        con.executemany(
-            """INSERT INTO temps (time, floor, temp, hour, date_iso, day, time_trunc)
-                        VALUES ($time,
-                        $floor,
-                        $temp,
-                        strftime(datetrunc('hour', CAST($time AS TIMESTAMPTZ)), '%H:%M'),
-                        strftime(CAST($time AS TIMESTAMPTZ), '%Y-%m-%d'),
-                        datetrunc('day', CAST($time AS TIMESTAMPTZ)),
-                        datetrunc('hour', CAST($time AS TIMESTAMPTZ)))""",
-            rows,
-        )

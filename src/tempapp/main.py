@@ -2,7 +2,7 @@ import sys
 
 import uvicorn
 
-from tempapp.utils import get_temps
+from tempapp.pipeline import get_temps
 
 
 def main():

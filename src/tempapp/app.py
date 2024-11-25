@@ -1,6 +1,6 @@
 import locale
 import logging
-from datetime import datetime, timedelta
+from datetime import date, datetime, timedelta
 
 import plotly.express as px
 import plotly.graph_objects as go
@@ -98,18 +98,12 @@ app_ui = ui.page_navbar(
 
 def server(input, output, session):
     logger.info("New session began at: " + datetime.now().strftime("%H:%M:%S"))
-    logger.info("Setting up connection to database.")
-    connection = utils.create_connection()
+    logger.info("Loading data.")
 
-    max_timestamp: datetime = utils.query_db(
-        connection, "SELECT MAX(time_trunc) AS max_timestamp FROM temps"
-    ).item()
+    base = utils.load_data()
 
-    @session.on_ended
-    def close_connection():
-        logger.info("Session ended at: " + datetime.now().strftime("%H:%M:%S"))
-        connection.close()
-        logger.info("Closed connection to database.")
+    max_timestamp: datetime = base.select("time_trunc").max().item()
+    max_day: date = base.select("day").max().item().date()
 
     @output
     @render.text
@@ -155,11 +149,9 @@ def server(input, output, session):
     @output
     @render.ui
     def temp_boxes():
-        data = utils.query_db(
-            connection,
-            """SELECT floor, temp FROM temps WHERE time_trunc = $time""",
-            time=utils.fix_timezone(input.time()).strftime("%Y-%m-%d %H:%M:%S"),
-        )  # Fix the timezone in the query, and also format the input so that DuckDB correctly interprets the datetime
+        data = base.filter(
+            pl.col("time_trunc") == utils.fix_timezone(input.time())
+        ).select("floor", "temp")
 
         # Split data for each floor
         floors = utils.split_floor_data(data)
@@ -194,21 +186,13 @@ def server(input, output, session):
         # Get the latest available from the last 7 days by truncating the timestamp
         # to make sure we get full days of data.
 
-        selection = input.select_floor()
-        floor_filter: str = "" if selection == "Huset" else " AND floor = $floor"
+        data = base.filter(
+            (pl.col("day") >= max_day - timedelta(days=6))
+            & (pl.col("day") <= max_day + timedelta(days=1))
+        ).select("day", "hour", "temp", "floor")
 
-        params = {"floor": selection} if selection != "Huset" else {}
-
-        data = utils.query_db(
-            connection,
-            f"""--sql 
-            SELECT day, hour, temp FROM temps
-            WHERE time_trunc >= date_trunc('day', (SELECT MAX(time_trunc) FROM temps)) - INTERVAL '6' DAY
-            AND time_trunc <= date_trunc('day', (SELECT MAX(time_trunc) FROM temps)) + INTERVAL '1' DAY
-            {floor_filter}
-            """,
-            **params,
-        )
+        if (selection := input.select_floor()) != "Huset":
+            data = data.filter(pl.col("floor") == selection)
 
         avg_temp = (
             data.group_by("day", "hour")
@@ -261,18 +245,19 @@ def server(input, output, session):
     @output
     @render_widget
     def day_plt() -> go.FigureWidget:
-        # Get the latest available from 24 hours back.
-        data = utils.query_db(
-            connection,
-            """SELECT floor, temp, time_trunc, date_iso, hour FROM temps
-            WHERE time_trunc >= (SELECT MAX(time_trunc) FROM temps)
-            - INTERVAL '24' HOUR AND time_trunc <= (SELECT MAX(time_trunc) FROM temps)""",
-        ).with_columns(
-            locale_hour_day=pl.when(
-                pl.col("hour") == pl.col("time_trunc").min().dt.strftime("%H:%M")
+        data = (
+            base.filter(
+                (pl.col("time_trunc") >= (max_timestamp - timedelta(hours=24)))
+                & (pl.col("time_trunc") <= max_timestamp)
             )
-            .then(pl.col("time_trunc").dt.strftime("%H:%M - %-d/%-m"))
-            .otherwise(pl.col("hour"))
+            .select("floor", "temp", "time_trunc", "date_iso", "hour")
+            .with_columns(
+                locale_hour_day=pl.when(
+                    pl.col("hour") == pl.col("time_trunc").min().dt.strftime("%H:%M")
+                )
+                .then(pl.col("time_trunc").dt.strftime("%H:%M - %-d/%-m"))
+                .otherwise(pl.col("hour"))
+            )
         )
 
         house_avg_hour = (
@@ -392,12 +377,13 @@ def server(input, output, session):
         if not input.daterange() or len(input.daterange()) < 2:
             raise ValueError("Invalid date range")
 
-        # Query the db for data
-        data = utils.query_db(
-            connection,
-            """SELECT * FROM temps WHERE time BETWEEN $start AND $end""",
-            start=input.daterange()[0],
-            end=input.daterange()[1] + timedelta(days=1),
+        data = base.filter(
+            pl.col("time_trunc")
+            .dt.date()
+            .is_between(
+                (input.daterange()[0]),
+                input.daterange()[1] + timedelta(days=1),
+            )
         )
 
         # Create a day variable and then group on it to get a mean temp per day
