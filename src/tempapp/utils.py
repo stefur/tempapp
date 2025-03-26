@@ -77,6 +77,16 @@ def split_floor_data(df: pl.DataFrame) -> dict[str, pl.DataFrame]:
     return {floor: df.filter(pl.col("floor") == floor) for floor in floors}
 
 
+def brightness(r, g, b) -> int:
+    """Calculate brightness"""
+    return (r * 299 + g * 587 + b * 114) / 1000
+
+
+def color_difference(color1, color2) -> int:
+    """Calculate color difference"""
+    return sum(abs(c1 - c2) for c1, c2 in zip(color1, color2))
+
+
 def determine_colors(temp: int) -> Tuple[str, str]:
     """Sets the background and foreground color according to temperature"""
     tmin, tmax = (
@@ -107,20 +117,12 @@ def determine_colors(temp: int) -> Tuple[str, str]:
 
     # Check which text color to use based on the W3C algorithm
 
-    # Calculate brightness
-    def brightness(r, g, b):
-        return (r * 299 + g * 587 + b * 114) / 1000
-
-    # Calculate color difference
-    def color_difference(color1, color2):
-        return sum(abs(c1 - c2) for c1, c2 in zip(color1, color2))
-
     # Calculate brightness and color difference for each text color
     bg_brightness = brightness(r_bg, g_bg, b_bg)
     best_fg_color = "#FFFFFF"  # default to white fg_color
 
     # Check which color is best given the background
-    for fg_color_hex, (r_fg, g_fg, b_fg) in text_colors.items():
+    for r_fg, g_fg, b_fg in text_colors.values():
         fg_brightness = brightness(r_fg, g_fg, b_fg)
         brightness_diff = abs(bg_brightness - fg_brightness)
         color_diff = color_difference((r_bg, g_bg, b_bg), (r_fg, g_fg, b_fg))

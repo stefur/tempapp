@@ -12,7 +12,7 @@ from faicons import icon_svg as icon
 from shiny import App, reactive, render, ui
 from shinywidgets import output_widget, render_widget
 
-import tempapp.utils as utils
+from . import utils
 
 # Set the locale
 locale.setlocale(locale.LC_ALL, "sv_SE.utf-8")
@@ -34,7 +34,7 @@ app_ui = ui.page_navbar(
                     ui.output_ui("temp_boxes", fillable=True),
                 ),
             ),
-            ui.row(ui.output_ui("time_slider")),
+            ui.row(ui.panel_well(ui.output_ui("time_slider"))),
             ui.br(),
             ui.row(ui.h2(icon("calendar-day", style="solid"), " Senaste dygnet")),
             ui.br(),
@@ -69,7 +69,7 @@ app_ui = ui.page_navbar(
     ui.nav_panel(
         "Långtidsdata",
         ui.page_fluid(
-            ui.row(ui.h2(icon("calendar-days", style="solid"), " Tidsserie")),
+            ui.row(ui.h2(icon("calendar-days", style="solid"), " Långtidsdata")),
             ui.br(),
             ui.row(
                 ui.column(
@@ -104,6 +104,10 @@ def server(input, output, session):
 
     max_timestamp: datetime = base.select("time_trunc").max().item()
     max_day: date = base.select("day").max().item().date()
+
+    @session.on_ended
+    def end():
+        logger.info("Session ended at: " + datetime.now().strftime("%H:%M:%S"))
 
     @output
     @render.text
