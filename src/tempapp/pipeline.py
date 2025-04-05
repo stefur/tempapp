@@ -5,12 +5,11 @@ from zoneinfo import ZoneInfo
 from duckdb import connect
 from requests import get
 
+from .utils import SETTINGS
+
 
 def get_temps() -> None:
-    """Load the server settings and ask the API for temps to update the db"""
-    with open("/app/settings.json", "r") as file:
-        settings = json.load(file)
-
+    """Ask the API for temps to update the db"""
     # Sensors
     entities = {
         # 1
@@ -24,9 +23,9 @@ def get_temps() -> None:
     time = datetime.now(tz=ZoneInfo("Europe/Stockholm"))
 
     for entity in entities.keys():
-        url = f"""https://{settings["server"]}/api/states/sensor.{entity}"""
+        url = f"""https://{SETTINGS["server"]}/api/states/sensor.{entity}"""
 
-        response = get(url, headers=settings["headers"])
+        response = get(url, headers=SETTINGS["headers"])
         json_data = json.loads(response.text)
         entities[entity].update({"floor": json_data["attributes"]["friendly_name"]})
         entities[entity].update({"temp": round(float(json_data["state"]), 1)})
@@ -41,7 +40,7 @@ def get_temps() -> None:
     ]
 
     with connect(":memory:") as connection:
-        connection.execute("CREATE TABLE temps AS SELECT * FROM '/data/temps.parquet'")
+        connection.execute(f"CREATE TABLE temps AS SELECT * FROM '{SETTINGS['data']}'")
         connection.executemany(
             """INSERT INTO temps (time, floor, temp, hour, date_iso, day, time_trunc)
                         VALUES ($time,
@@ -54,4 +53,4 @@ def get_temps() -> None:
             rows,
         )
 
-        connection.execute("COPY temps TO '/data/temps.parquet' (FORMAT PARQUET)")
+        connection.execute(f"COPY temps TO '{SETTINGS['data']}' (FORMAT PARQUET)")

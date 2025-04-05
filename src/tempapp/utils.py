@@ -1,3 +1,5 @@
+import json
+import os
 from datetime import datetime
 from typing import Any, Tuple
 from zoneinfo import ZoneInfo
@@ -8,6 +10,16 @@ from matplotlib import colormaps, colors
 from polars import DataFrame
 
 
+def load_settings() -> dict:
+    settings_path = os.environ.get("APP_SETTINGS", "./settings.json")
+    with open(settings_path) as f:
+        settings = json.load(f)
+    return settings
+
+
+SETTINGS = load_settings()
+
+
 def dot_to_comma(num: float) -> str:
     """Take a float and turn it into a string with a comma for decimal"""
     return str(num).replace(".", ",")
@@ -15,7 +27,7 @@ def dot_to_comma(num: float) -> str:
 
 def load_data() -> DataFrame:
     """Loads data for use in the app"""
-    return pl.read_parquet("/data/temps.parquet").with_columns(
+    return pl.read_parquet(SETTINGS["data"]).with_columns(
         [
             pl.col("time_trunc")
             .dt.replace_time_zone("UTC")
