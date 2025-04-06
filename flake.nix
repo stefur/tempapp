@@ -30,6 +30,10 @@
       systems = lib.systems.flakeExposed;
       forAllSystems = lib.genAttrs systems;
 
+      getPkgs = system: nixpkgs.legacyPackages.${system};
+
+      pythonVersion = system: let pkgs = getPkgs system; in pkgs.python312;
+
       # Load the workspace and create the overlay for pyproject.
       workspace = uv2nix.lib.workspace.loadWorkspace { workspaceRoot = ./.; };
       overlay = workspace.mkPyprojectOverlay { sourcePreference = "wheel"; };
@@ -37,8 +41,8 @@
       # Build a Python set based on pyproject-nix builders.
       buildPythonSet = system:
         let
-          pkgs = nixpkgs.legacyPackages.${system};
-          python = pkgs.python312;
+          pkgs = getPkgs system;
+          python = pythonVersion system;
         in (pkgs.callPackage pyproject-nix.build.packages {
           inherit python;
         }).overrideScope (lib.composeManyExtensions [
@@ -48,31 +52,30 @@
 
       # Build the virtual environment.
       buildVenv = system:
-        let
-          pkgs = nixpkgs.legacyPackages.${system};
-          pythonSet = buildPythonSet system;
+        let pythonSet = buildPythonSet system;
         in pythonSet.mkVirtualEnv "tempapp-venv" workspace.deps.default;
 
       # Define the production container image.
       dockerImage = system:
         let
-          pkgs = nixpkgs.legacyPackages.${system};
+          pkgs = getPkgs system;
           venv = buildVenv system;
         in pkgs.dockerTools.buildLayeredImage {
           name = "tempapp";
-          tag = "latest";
-          created =
-            "now"; # For fully reproducible builds, consider using a fixed timestamp.
+          tag = "1.0";
           contents = [
             venv
-            (pkgs.glibcLocales.override { locales = [ "sv_SE.UTF-8" ]; })
+            (pkgs.glibcLocales.override {
+              locales = [ "sv_SE.UTF-8/UTF-8" ];
+              allLocales = false;
+            })
           ];
           config = {
             Env = [
               "LOCALE_ARCHIVE=/lib/locale/locale-archive"
               "TZ=Europe/Stockholm"
             ];
-            Entrypoint = [ "tempapp" "run" ];
+            Cmd = [ "tempapp" "run" ];
             ExposedPorts = { "8000/tcp" = { }; };
           };
         };
@@ -80,10 +83,17 @@
       # Define the development environment shell.
       devEnv = system:
         let
-          pkgs = nixpkgs.legacyPackages.${system};
-          python = pkgs.python312;
+          pkgs = getPkgs system;
+          python = pythonVersion system;
         in pkgs.mkShell {
-          packages = [ python pkgs.uv pkgs.glibcLocales ];
+          packages = [
+            python
+            pkgs.uv
+            (pkgs.glibcLocales.override {
+              locales = [ "sv_SE.UTF-8/UTF-8" ];
+              allLocales = false;
+            })
+          ];
           env = {
             UV_PYTHON_DOWNLOADS = "never";
             UV_PYTHON = python.interpreter;
@@ -97,7 +107,7 @@
         };
     in {
       packages = forAllSystems (system:
-        lib.optionalAttrs (nixpkgs.legacyPackages.${system}.stdenv.isLinux) {
+        lib.optionalAttrs (getPkgs system).stdenv.isLinux {
           image = dockerImage system;
         });
       devShells = forAllSystems (system: { dev = devEnv system; });
