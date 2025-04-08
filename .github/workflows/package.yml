@@ -12,8 +12,8 @@ jobs:
 
       - uses: docker/setup-qemu-action@v3
       - uses: DeterminateSystems/nix-installer-action@main
-      - uses: DeterminateSystems/magic-nix-cache-action@main
+      - uses: DeterminateSystems/flakehub-cache-action@main
       - run: |
-          scripts/build_and_push_image.sh
+          scripts/build_and_publish.sh
         env:
           REGISTRY_ACCESS_TOKEN: ${{ secrets.REGISTRY_ACCESS_TOKEN }}
