@@ -11,8 +11,10 @@ jobs:
           fetch-depth: 0
 
       - uses: docker/setup-qemu-action@v3
-      - uses: DeterminateSystems/nix-installer-action@main
-      - uses: DeterminateSystems/flakehub-cache-action@main
+      - uses: cachix/install-nix-action@v31
+        with:
+          extra_nix_config: |
+            extra-platforms = aarch64-linux
       - run: |
           scripts/build_and_publish.sh
         env:
