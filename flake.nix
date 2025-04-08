@@ -77,6 +77,10 @@
             ];
             Cmd = [ "tempapp" "run" ];
             ExposedPorts = { "8000/tcp" = { }; };
+            Labels = {
+              "org.opencontainers.image.source" =
+                "https://github.com/stefur/tempapp";
+            };
           };
         };
 
