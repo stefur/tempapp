@@ -13,7 +13,7 @@ docker load < x86_64
 docker load < arm64
 
 docker push $REPOSITORY:$TAG-amd64
-docker push $REPOSITORY:$TAG-armd64
+docker push $REPOSITORY:$TAG-arm64
 
 docker manifest create $REPOSITORY:$TAG $REPOSITORY:$TAG-amd64 $REPOSITORY:$TAG-arm64
 docker manifest annotate $REPOSITORY:$TAG $REPOSITORY:$TAG-amd64 --arch amd64
