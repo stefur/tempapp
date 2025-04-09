@@ -2,11 +2,18 @@
 
 set -eu
 
+TAG=$(git rev-parse --short "$GITHUB_SHA")
+REPOSITORY="ghcr.io/stefur/tempapp"
+USERNAME="stefur"
+
 nix build .#packages.x86_64-linux.image -o x86_64
 nix build .#packages.aarch64-linux.image -o arm64
 
-REPOSITORY="docker://ghcr.io/stefur/tempapp"
-USERNAME="stefur"
+docker load < x86_64
+docker load < arm64
 
-skopeo --insecure-policy copy --dest-creds="$USERNAME:$REGISTRY_ACCESS_TOKEN" "docker-archive:./x86_64" "$REPOSITORY"
-skopeo --insecure-policy copy --dest-creds="$USERNAME:$REGISTRY_ACCESS_TOKEN" "docker-archive:./arm64" "$REPOSITORY"
+docker manifest create $REPOSITORY:$TAG $REPOSITORY:$TAG-amd64 $REPOSITORY:$TAG-arm64
+docker manifest annotate $REPOSITORY:$TAG $REPOSITORY:$TAG-amd64 --arch amd64
+docker manifest annotate $REPOSITORY:$TAG $REPOSITORY:$TAG-arm64 --arch arm64
+
+docker manifest push $REPOSITORY:$TAG

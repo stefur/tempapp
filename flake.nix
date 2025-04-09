@@ -24,7 +24,8 @@
     };
   };
 
-  outputs = { nixpkgs, uv2nix, pyproject-nix, pyproject-build-systems, ... }:
+  outputs =
+    { self, nixpkgs, uv2nix, pyproject-nix, pyproject-build-systems, ... }:
     let
       inherit (nixpkgs) lib;
       systems = lib.systems.flakeExposed;
@@ -61,8 +62,8 @@
           pkgs = getPkgs system;
           venv = buildVenv system;
         in pkgs.dockerTools.buildLayeredImage {
-          name = "tempapp";
-          tag = "1.0";
+          name = "ghcr.io/stefur/tempapp";
+          tag = (self.shortRev or "dev") + "-" + pkgs.go.GOARCH;
           contents = [
             venv
             (pkgs.glibcLocales.override {
@@ -80,6 +81,8 @@
             Labels = {
               "org.opencontainers.image.source" =
                 "https://github.com/stefur/tempapp";
+              "org.opencontainers.image.description" =
+                "An image to run the app.";
             };
           };
         };
