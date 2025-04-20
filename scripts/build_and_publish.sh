@@ -4,10 +4,9 @@ set -eu
 
 TAG=$(git rev-parse --short "$GITHUB_SHA")
 REPOSITORY="ghcr.io/stefur/tempapp"
-USERNAME="stefur"
 
-nix build .#packages.x86_64-linux.image -o x86_64
-nix build .#packages.aarch64-linux.image -o arm64
+nix build --quiet .#packages.x86_64-linux.image -o x86_64
+nix build --quiet .#packages.aarch64-linux.image -o arm64
 
 docker load < x86_64
 docker load < arm64
