@@ -20,6 +20,10 @@ locale.setlocale(locale.LC_ALL, "sv_SE.utf-8")
 # Tap into the uvicorn logging
 logger = logging.getLogger("uvicorn.error")
 
+# Busy indicators
+use_busy = ui.busy_indicators.use(spinners=True, pulse=False, fade=True)
+busy_indicators = ui.busy_indicators.options(spinner_type="bars3", spinner_delay="0s")
+
 app_ui = ui.page_navbar(
     ui.nav_panel(
         "Dashboard",
@@ -65,6 +69,8 @@ app_ui = ui.page_navbar(
                 ),
             ),
         ),
+        use_busy,
+        busy_indicators,
     ),
     ui.nav_panel(
         "Långtidsdata",
@@ -90,6 +96,8 @@ app_ui = ui.page_navbar(
                 )
             ),
         ),
+        use_busy,
+        busy_indicators,
     ),
     title="TempApp",
     theme=shinyswatch.theme.materia(),
