@@ -1,0 +1,28 @@
+meta:
+  name: brand.yml TempApp
+
+color:
+  palette:
+    black: "#111111"
+    white: "#FAFAF5"
+    green: "#3EB489"
+    gray: "#333333"
+  foreground: black
+  background: white
+  primary: green
+  secondary: gray
+
+typography:
+  fonts:
+    - family: Inter
+      source: google
+      weight: [400, 600]
+      style: normal
+      display: block
+  base:
+    family: Inter
+    weight: 400
+  headings:
+    family: Inter
+    weight: 600
+    color: black

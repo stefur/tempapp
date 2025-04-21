@@ -6,11 +6,12 @@ import plotly.express as px
 import plotly.graph_objects as go
 import polars as pl
 import polars_xdt as xdt
-import shinyswatch
 from dateutil.relativedelta import relativedelta
 from faicons import icon_svg as icon
 from shiny import App, reactive, render, ui
 from shinywidgets import output_widget, render_widget
+
+from tempapp.types import ThemeModel
 
 from . import utils
 
@@ -21,14 +22,20 @@ locale.setlocale(locale.LC_ALL, "sv_SE.utf-8")
 logger = logging.getLogger("uvicorn.error")
 
 # Busy indicators
-use_busy = ui.busy_indicators.use(spinners=True, pulse=False, fade=True)
-busy_indicators = ui.busy_indicators.options(spinner_type="bars3", spinner_delay="0s")
+busy_indicators = (
+    ui.busy_indicators.use(spinners=True, pulse=False, fade=True),
+    ui.busy_indicators.options(spinner_type="bars3", spinner_delay="0s"),
+)
+
+# Load and validate theme attributes from brand.yml
+theme_brand = ui.Theme.from_brand(__file__)
+theme = ThemeModel.model_validate(theme_brand, from_attributes=True)
 
 app_ui = ui.page_navbar(
     ui.nav_panel(
         "Dashboard",
         ui.page_fluid(
-            ui.row(ui.h2(icon("clock", style="regular"), " Timme för timme")),
+            ui.row(ui.h3(icon("clock", style="regular"), " Timme för timme")),
             ui.br(),
             ui.row(
                 ui.h4(
@@ -38,25 +45,52 @@ app_ui = ui.page_navbar(
                     ui.output_ui("temp_boxes", fillable=True),
                 ),
             ),
-            ui.row(ui.panel_well(ui.output_ui("time_slider"))),
+            ui.tags.style(
+                # Increase the font size and hide the tick marks from the slider
+                f"#time_slider .irs-grid-text {{font-size: 0.85rem; color: {
+                    theme.brand.color.palette['black']
+                }}} .irs-grid-pol {{display: none;}}"
+            ),
+            ui.tags.style(
+                # Target the title in the navbar and the link items
+                """
+                .navbar-brand {
+                    font-size: 1.5rem;
+                    font-weight: 600;
+                }
+                .shiny-tab-input .nav-link {
+                    font-size: 1.1rem !important;
+                    font-weight: 600 !important;
+                }
+                """
+            ),
+            ui.row(
+                ui.panel_well(
+                    ui.output_ui("time_slider"),
+                    # White background and center the div for the slider within the panel
+                    style="background-color: #FFFFFF; display: flex; align-items: center;",
+                )
+            ),
             ui.br(),
-            ui.row(ui.h2(icon("calendar-day", style="solid"), " Senaste dygnet")),
+            ui.row(ui.h3(icon("calendar-day", style="solid"), " Senaste dygnet")),
             ui.br(),
             ui.row(
                 ui.card(
                     output_widget("day_plt"),
+                    style="background-color: #FFFFFF;",
                 ),
             ),
             ui.br(),
-            ui.row(ui.h2(icon("calendar-week", style="solid"), " Senaste 7 dygnen")),
+            ui.row(ui.h3(icon("calendar-week", style="solid"), " Senaste 7 dygnen")),
             ui.br(),
             ui.row(
                 ui.column(
                     12,
                     ui.card(
+                        ui.p("Medeltemperaturer timme för timme."),
                         ui.input_select(
                             "select_floor",
-                            "Välj:",
+                            "Filtrera:",
                             {
                                 "Huset": "Huset",
                                 "Våning 1": "Våning 1",
@@ -65,22 +99,23 @@ app_ui = ui.page_navbar(
                             },
                         ),
                         output_widget("seven_day_heatmap"),
+                        style="background-color: #FFFFFF;",
                     ),
                 ),
             ),
         ),
-        use_busy,
         busy_indicators,
     ),
     ui.nav_panel(
         "Långtidsdata",
         ui.page_fluid(
-            ui.row(ui.h2(icon("calendar-days", style="solid"), " Långtidsdata")),
+            ui.row(ui.h3(icon("calendar-days", style="solid"), " Långtidsdata")),
             ui.br(),
             ui.row(
                 ui.column(
                     12,
                     ui.card(
+                        ui.p("Temperaturer över tid."),
                         ui.input_date_range(
                             id="daterange",
                             label="Datum:",
@@ -92,15 +127,20 @@ app_ui = ui.page_navbar(
                             id="reset", label="Återställ", width="200px"
                         ),
                         output_widget("long_plt"),
+                        style="background-color: #FFFFFF;",
                     ),
                 )
             ),
         ),
-        use_busy,
         busy_indicators,
     ),
+    id="main",
     title="TempApp",
-    theme=shinyswatch.theme.materia(),
+    theme=theme_brand,
+    navbar_options=ui.navbar_options(
+        bg=theme.brand.color.primary,
+        theme="dark",
+    ),
 )
 
 
@@ -125,18 +165,16 @@ def server(input, output, session):
     @output
     @render.ui
     def time_slider():
-        return (
-            ui.input_slider(
-                id="time",
-                label="",
-                min=max_timestamp - timedelta(hours=24),
-                max=max_timestamp,
-                value=max_timestamp,
-                time_format="%H:%M %-d/%-m",
-                step=timedelta(hours=1),
-                width="100%",
-                ticks=True,
-            ),
+        return ui.input_slider(
+            id="time",
+            label="",
+            min=max_timestamp - timedelta(hours=24),
+            max=max_timestamp,
+            value=max_timestamp,
+            time_format="%H:%M %-d/%-m",
+            step=timedelta(hours=1),
+            width="97%",
+            ticks=True,
         )
 
     @reactive.effect
@@ -182,7 +220,7 @@ def server(input, output, session):
                 # how high the temp is.
                 ui.card(
                     floor,
-                    ui.h2(utils.dot_to_comma(temp)),
+                    ui.h3(utils.dot_to_comma(temp)).add_style(f"color:{fg_color};"),
                 ).add_style(f"background-color:{bg_color};color:{fg_color};")
                 for floor, temp in floor_temps.items()
                 if (colors := utils.determine_colors(temp))
@@ -240,7 +278,6 @@ def server(input, output, session):
         # Customize the layout
         heatmap.update_layout(
             template="plotly_white",
-            title="Medeltemperatur timme för timme",
             yaxis=dict(
                 categoryorder="category descending",
                 fixedrange=True,
@@ -250,7 +287,7 @@ def server(input, output, session):
             xaxis=dict(fixedrange=True, showgrid=False),
         )
 
-        result = utils.set_plotly_config(heatmap)
+        result = utils.set_plotly_config(heatmap, theme)
 
         return result
 
@@ -376,10 +413,12 @@ def server(input, output, session):
             xmax=data["locale_hour_day"].last(),
         )
 
+        plt.update_yaxes(title_text="Temperatur °C")
+
         # Disable all clicking on traces for this plot as it doesn't make much sense here
         plt.update_layout(legend_itemclick=False, legend_itemdoubleclick=False)
 
-        result = utils.set_plotly_config(plt)
+        result = utils.set_plotly_config(plt, theme)
 
         return result
 
@@ -469,7 +508,6 @@ def server(input, output, session):
         # Title, template, legend etc.
         time_series.update_layout(
             template="plotly_white",
-            title="Temperatur över tid",
             legend=dict(
                 orientation="h",
                 y=1.14,
@@ -491,7 +529,7 @@ def server(input, output, session):
         time_series.update_yaxes(title_text="Temperatur °C")
         time_series.update_xaxes(nticks=10)
 
-        result = utils.set_plotly_config(time_series)
+        result = utils.set_plotly_config(time_series, theme)
 
         # Show the plot
         return result

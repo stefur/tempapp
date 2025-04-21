@@ -9,6 +9,8 @@ import polars as pl
 from matplotlib import colormaps, colors
 from polars import DataFrame
 
+from .types import ThemeModel
+
 
 def load_settings() -> dict:
     settings_path = os.environ.get("APP_SETTINGS", "./settings.json")
@@ -40,9 +42,9 @@ def load_data() -> DataFrame:
 
 
 def set_plotly_config(
-    fig: go.FigureWidget, **kwargs: dict[str, Any]
+    fig: go.FigureWidget, theme: ThemeModel, **kwargs: dict[str, Any]
 ) -> go.FigureWidget:
-    """Apply default config options as well as any optionals"""
+    """Apply default config options, basic theming as well as any config optionals"""
     # This is a workaround:
     # https://github.com/plotly/plotly.py/issues/1074#issuecomment-1471486307
     # https://github.com/posit-dev/py-shiny/issues/944
@@ -56,6 +58,17 @@ def set_plotly_config(
     }
     config_defaults.update(kwargs)
     fig._config = fig._config | config_defaults
+
+    # Apply theming
+    fig.update_layout(
+        xaxis=dict(linecolor=theme.brand.color.palette["black"]),
+        yaxis=dict(linecolor=theme.brand.color.palette["black"]),
+        font=dict(
+            family=theme.brand.typography.base.family,
+            size=14,
+            color=theme.brand.color.palette["black"],
+        ),
+    )
 
     return fig
 
