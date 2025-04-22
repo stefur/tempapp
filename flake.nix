@@ -33,7 +33,9 @@
 
       getPkgs = system: nixpkgs.legacyPackages.${system};
 
-      pythonVersion = system: let pkgs = getPkgs system; in pkgs.python312;
+      pythonVersion = system:
+        let pkgs = getPkgs system;
+        in pkgs.python312.withPackages (ps: [ ps.setuptools ps.wheel ]);
 
       # Load the workspace and create the overlay for pyproject.
       workspace = uv2nix.lib.workspace.loadWorkspace { workspaceRoot = ./.; };
