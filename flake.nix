@@ -31,9 +31,15 @@
       systems = lib.systems.flakeExposed;
       forAllSystems = lib.genAttrs systems;
 
+      pyprojectOverrides = final: prev: {
+        libsass = prev.libsass.overrideAttrs(old: {
+          buildInputs = (old.buildInputs or []) ++ final.resolveBuildSystem ( {setuptools = [];});
+          });
+      };
+
       getPkgs = system: nixpkgs.legacyPackages.${system};
 
-      pythonVersion = system: let pkgs = getPkgs system; in pkgs.python312Full;
+      pythonVersion = system: let pkgs = getPkgs system; in pkgs.python312;
 
       # Load the workspace and create the overlay for pyproject.
       workspace = uv2nix.lib.workspace.loadWorkspace { workspaceRoot = ./.; };
@@ -49,6 +55,7 @@
         }).overrideScope (lib.composeManyExtensions [
           pyproject-build-systems.overlays.default
           overlay
+          pyprojectOverrides
         ]);
 
       # Build the virtual environment.
