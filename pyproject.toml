@@ -7,20 +7,15 @@ authors = [
 ]
 dependencies = [
     "shiny>=0.8.1",
-    "htmltools>=0.5.1",
     "polars>=0.20.10",
     "shinywidgets>=0.3.0",
-    "duckdb>=0.10.0",
-    "plotly>=5.19.0",
-    "pandas>=2.2.1",
     "faicons>=0.2.2",
-    "matplotlib>=3.8.3",
     "requests>=2.31.0",
     "polars-xdt>=0.14.12",
-    "pyarrow>=17.0.0",
     "brand-yml>=0.1.1",
     "libsass>=0.23.0",
-    "pydantic>=2.11.3",
+    "pyecharts>=2.0.8",
+    "coloraide>=4.7.1",
 ]
 readme = "README.md"
 requires-python = ">= 3.11"
@@ -37,6 +32,7 @@ packages = ["src/tempapp"]
 
 [dependency-groups]
 dev = [
+    "ipykernel>=6.29.5",
     "types-python-dateutil>=2.9.0.20240906",
     "types-pytz>=2024.2.0.20240913",
     "types-requests>=2.32.0.20240914",

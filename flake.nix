@@ -39,7 +39,7 @@
 
       getPkgs = system: nixpkgs.legacyPackages.${system};
 
-      pythonVersion = system: let pkgs = getPkgs system; in pkgs.python312;
+      pythonVersion = system: let pkgs = getPkgs system; in pkgs.python313;
 
       # Load the workspace and create the overlay for pyproject.
       workspace = uv2nix.lib.workspace.loadWorkspace { workspaceRoot = ./.; };
@@ -73,14 +73,9 @@
           tag = (self.shortRev or "dev") + "-" + pkgs.go.GOARCH;
           contents = [
             venv
-            (pkgs.glibcLocales.override {
-              locales = [ "sv_SE.UTF-8/UTF-8" ];
-              allLocales = false;
-            })
           ];
           config = {
             Env = [
-              "LOCALE_ARCHIVE=/lib/locale/locale-archive"
               "TZ=Europe/Stockholm"
             ];
             Cmd = [ "tempapp" "run" ];
@@ -103,10 +98,6 @@
           packages = [
             python
             pkgs.uv
-            (pkgs.glibcLocales.override {
-              locales = [ "sv_SE.UTF-8/UTF-8" ];
-              allLocales = false;
-            })
           ];
           env = {
             UV_PYTHON_DOWNLOADS = "never";

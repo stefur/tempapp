@@ -2,7 +2,7 @@ import json
 from datetime import datetime
 from zoneinfo import ZoneInfo
 
-from duckdb import connect
+import polars as pl
 from requests import get
 
 from .utils import SETTINGS
@@ -39,18 +39,13 @@ def get_temps() -> None:
         for data in entities.values()
     ]
 
-    with connect(":memory:") as connection:
-        connection.execute(f"CREATE TABLE temps AS SELECT * FROM '{SETTINGS['data']}'")
-        connection.executemany(
-            """INSERT INTO temps (time, floor, temp, hour, date_iso, day, time_trunc)
-                        VALUES ($time,
-                        $floor,
-                        $temp,
-                        strftime(datetrunc('hour', CAST($time AS TIMESTAMPTZ)), '%H:%M'),
-                        strftime(CAST($time AS TIMESTAMPTZ), '%Y-%m-%d'),
-                        datetrunc('day', CAST($time AS TIMESTAMPTZ)),
-                        datetrunc('hour', CAST($time AS TIMESTAMPTZ)))""",
-            rows,
+    (
+        pl.DataFrame(rows)
+        .with_columns(
+            hour=pl.col("time").dt.truncate("1h").dt.strftime("%H:%M"),
+            date_iso=pl.col("time").dt.strftime("%Y-%m-%d"),
+            day=pl.col("time").dt.truncate("1d"),
+            time_trunc=pl.col("time").dt.truncate("1h"),
         )
-
-        connection.execute(f"COPY temps TO '{SETTINGS['data']}' (FORMAT PARQUET)")
+        .write_parquet(SETTINGS["data"])
+    )

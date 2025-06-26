@@ -1,15 +1,13 @@
 import json
 import os
 from datetime import datetime
-from typing import Any, Tuple
+from typing import Tuple
 from zoneinfo import ZoneInfo
 
-import plotly.graph_objects as go
 import polars as pl
-from matplotlib import colormaps, colors
+from coloraide import Color
+from coloraide.interpolate import Interpolator
 from polars import DataFrame
-
-from .types import ThemeModel
 
 
 def load_settings() -> dict:
@@ -20,6 +18,22 @@ def load_settings() -> dict:
 
 
 SETTINGS = load_settings()
+
+palette = [
+    "#313695",
+    "#4575B4",
+    "#74ADD1",
+    "#ABD9E9",
+    "#E0F3F8",
+    "#FFFFBF",
+    "#FEE090",
+    "#FDAE61",
+    "#F46D43",
+    "#D73027",
+    "#A50026",
+]
+
+interpolator = Color.interpolate(palette, space="srgb")
 
 
 def dot_to_comma(num: float) -> str:
@@ -38,58 +52,6 @@ def load_data() -> DataFrame:
             .dt.replace_time_zone("UTC")
             .dt.convert_time_zone("Europe/Stockholm"),
         ]
-    )
-
-
-def set_plotly_config(
-    fig: go.FigureWidget, theme: ThemeModel, **kwargs: dict[str, Any]
-) -> go.FigureWidget:
-    """Apply default config options, basic theming as well as any config optionals"""
-    # This is a workaround:
-    # https://github.com/plotly/plotly.py/issues/1074#issuecomment-1471486307
-    # https://github.com/posit-dev/py-shiny/issues/944
-
-    config_defaults = {
-        "displayModeBar": False,
-        "scrollZoom": False,
-        "displayLogo": False,
-        "editable": False,
-        "locale": "sv",
-    }
-    config_defaults.update(kwargs)
-    fig._config = fig._config | config_defaults
-
-    # Apply theming
-    fig.update_layout(
-        xaxis=dict(linecolor=theme.brand.color.palette["black"]),
-        yaxis=dict(linecolor=theme.brand.color.palette["black"]),
-        font=dict(
-            family=theme.brand.typography.base.family,
-            size=14,
-            color=theme.brand.color.palette["black"],
-        ),
-    )
-
-    return fig
-
-
-def add_threshold_lines(plt: go.FigureWidget, xmin: Any, xmax: Any) -> go.FigureWidget:
-    """Add two horizontal lines to as temperature thresholds"""
-
-    return plt.add_shape(
-        type="line",
-        x0=xmin,
-        x1=xmax,
-        y0=24,
-        y1=24,
-        line=dict(color="Red", width=1, dash="dash"),
-    ).add_shape(
-        type="line",
-        x0=xmin,
-        x1=xmax,
-        y0=21,
-        y1=21,
-        line=dict(color="Blue", width=1, dash="dash"),
     )
 
 
@@ -112,7 +74,9 @@ def color_difference(color1, color2) -> int:
     return sum(abs(c1 - c2) for c1, c2 in zip(color1, color2))
 
 
-def determine_colors(temp: int) -> Tuple[str, str]:
+def determine_colors(
+    temp: int, interpolator: Interpolator = interpolator
+) -> Tuple[str, str]:
     """Sets the background and foreground color according to temperature"""
     tmin, tmax = (
         18 if temp > 18 else temp,
@@ -120,12 +84,10 @@ def determine_colors(temp: int) -> Tuple[str, str]:
         25 if temp < 25 else temp,
     )  # Set the maximum value for the color scale
 
-    # Map the value to a color using interpolate
-    norm = colors.Normalize(vmin=tmin, vmax=tmax)
+    normalized_value = min(max((temp - tmin) / (tmax - tmin), 0), 1)
 
-    cmap = colormaps["RdYlBu_r"]
-
-    bg_color = colors.to_hex(cmap(norm(temp)))
+    # Map the value to a color using the interpolator
+    bg_color = interpolator(normalized_value).to_string(hex=True)
 
     # Get RGB from the hex
     r_bg, g_bg, b_bg = (

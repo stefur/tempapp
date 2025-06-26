@@ -1,22 +1,16 @@
-import locale
 import logging
 from datetime import date, datetime, timedelta
+from typing import Any
 
-import plotly.express as px
-import plotly.graph_objects as go
 import polars as pl
 import polars_xdt as xdt
 from dateutil.relativedelta import relativedelta
 from faicons import icon_svg as icon
+from pyecharts import options as opts
+from pyecharts.charts import HeatMap, Line
 from shiny import App, reactive, render, ui
-from shinywidgets import output_widget, render_widget
-
-from tempapp.types import ThemeModel
 
 from . import utils
-
-# Set the locale
-locale.setlocale(locale.LC_ALL, "sv_SE.utf-8")
 
 # Tap into the uvicorn logging
 logger = logging.getLogger("uvicorn.error")
@@ -27,15 +21,17 @@ busy_indicators = (
     ui.busy_indicators.options(spinner_type="bars3", spinner_delay="0s"),
 )
 
-# Load and validate theme attributes from brand.yml
-theme_brand = ui.Theme.from_brand(__file__)
-theme = ThemeModel.model_validate(theme_brand, from_attributes=True)
+# Load theme attributes from brand.yml, but skip type checking because I'm lazy
+theme: Any = ui.Theme.from_brand(__file__)
 
 app_ui = ui.page_navbar(
     ui.nav_panel(
         "Dashboard",
         ui.page_fluid(
-            ui.row(ui.h3(icon("clock", style="regular"), " Timme för timme")),
+            ui.HTML(
+                '<script src="https://cdn.jsdelivr.net/npm/echarts@5.6.0/dist/echarts.js"></script>'
+            ),
+            ui.row(ui.h3(icon("clock", style="regular"), " Just nu")),
             ui.br(),
             ui.row(
                 ui.h4(
@@ -44,12 +40,6 @@ app_ui = ui.page_navbar(
                 ui.p(
                     ui.output_ui("temp_boxes", fillable=True),
                 ),
-            ),
-            ui.tags.style(
-                # Increase the font size and hide the tick marks from the slider
-                f"#time_slider .irs-grid-text {{font-size: 0.85rem; color: {
-                    theme.brand.color.palette['black']
-                }}} .irs-grid-pol {{display: none;}}"
             ),
             ui.tags.style(
                 # Target the title in the navbar and the link items
@@ -64,19 +54,12 @@ app_ui = ui.page_navbar(
                 }
                 """
             ),
-            ui.row(
-                ui.panel_well(
-                    ui.output_ui("time_slider"),
-                    # White background and center the div for the slider within the panel
-                    style="background-color: #FFFFFF; display: flex; align-items: center;",
-                )
-            ),
             ui.br(),
             ui.row(ui.h3(icon("calendar-day", style="solid"), " Senaste dygnet")),
             ui.br(),
             ui.row(
                 ui.card(
-                    output_widget("day_plt"),
+                    ui.output_ui("line_plot"),
                     style="background-color: #FFFFFF;",
                 ),
             ),
@@ -98,7 +81,7 @@ app_ui = ui.page_navbar(
                                 "Våning 3": "Våning 3",
                             },
                         ),
-                        output_widget("seven_day_heatmap"),
+                        ui.output_ui("heatmap"),
                         style="background-color: #FFFFFF;",
                     ),
                 ),
@@ -126,7 +109,7 @@ app_ui = ui.page_navbar(
                         ui.input_action_button(
                             id="reset", label="Återställ", width="200px"
                         ),
-                        output_widget("long_plt"),
+                        ui.output_ui("long_line_plot"),
                         style="background-color: #FFFFFF;",
                     ),
                 )
@@ -136,7 +119,7 @@ app_ui = ui.page_navbar(
     ),
     id="main",
     title="TempApp",
-    theme=theme_brand,
+    theme=theme,
     navbar_options=ui.navbar_options(
         bg=theme.brand.color.primary,
         theme="dark",
@@ -160,22 +143,7 @@ def server(input, output, session):
     @output
     @render.text
     def status_right_now():
-        return f"""Kl {datetime.strftime(utils.fix_timezone(input.time()), "%H:%M (%-d/%-m)")}"""
-
-    @output
-    @render.ui
-    def time_slider():
-        return ui.input_slider(
-            id="time",
-            label="",
-            min=max_timestamp - timedelta(hours=24),
-            max=max_timestamp,
-            value=max_timestamp,
-            time_format="%H:%M %-d/%-m",
-            step=timedelta(hours=1),
-            width="97%",
-            ticks=True,
-        )
+        return f"""Kl {datetime.strftime(max_timestamp, "%H:%M (%-d/%-m)")}"""
 
     @reactive.effect
     @reactive.event(input.reset)
@@ -199,9 +167,9 @@ def server(input, output, session):
     @output
     @render.ui
     def temp_boxes():
-        data = base.filter(
-            pl.col("time_trunc") == utils.fix_timezone(input.time())
-        ).select("floor", "temp")
+        data = base.filter(pl.col("time_trunc") == max_timestamp).select(
+            "floor", "temp"
+        )
 
         # Split data for each floor
         floors = utils.split_floor_data(data)
@@ -230,70 +198,8 @@ def server(input, output, session):
             fixed_width=True,
         )
 
-    @output
-    @render_widget
-    def seven_day_heatmap() -> go.FigureWidget:
-        # Get the latest available from the last 7 days by truncating the timestamp
-        # to make sure we get full days of data.
-
-        data = base.filter(
-            (pl.col("day") >= max_day - timedelta(days=6))
-            & (pl.col("day") <= max_day + timedelta(days=1))
-        ).select("day", "hour", "temp", "floor")
-
-        if (selection := input.select_floor()) != "Huset":
-            data = data.filter(pl.col("floor") == selection)
-
-        avg_temp = (
-            data.group_by("day", "hour")
-            .agg(pl.col("temp").mean().round(1))
-            .sort("day", "hour")
-            .with_columns(
-                locale_day=xdt.format_localized(pl.col("day"), "%-d %B", "sv_SE"),
-                date_iso=pl.col("day").dt.strftime("%Y-%m-%d"),
-            )
-        )
-
-        heatmap = go.FigureWidget()
-
-        heatmap.add_trace(
-            go.Heatmap(
-                z=avg_temp["temp"],
-                x=avg_temp["locale_day"],
-                y=avg_temp["hour"],
-                hoverinfo="text",
-                hovertext=[
-                    f"""Datum: {row["date_iso"]}<br>Tid: {row["hour"]}<br>Temp: {row["temp"]}°C"""
-                    for row in avg_temp.rows(named=True)
-                ],  # Manually create the text for hover labels to avoid showing labels for missing (e.g. future) timestamps
-                colorscale="rdylbu_r",  # Set the color scale (in reverse)
-                zmin=18
-                if min(avg_temp["temp"]) > 18
-                else min(avg_temp["temp"]),  # Set the minimum value for the color scale
-                zmax=25
-                if max(avg_temp["temp"]) < 25
-                else max(avg_temp["temp"]),  # Set the maximum value for the color scale
-            )
-        )
-        # Customize the layout
-        heatmap.update_layout(
-            template="plotly_white",
-            yaxis=dict(
-                categoryorder="category descending",
-                fixedrange=True,
-                dtick=2,
-                showgrid=False,
-            ),  # Sort the hours correctly
-            xaxis=dict(fixedrange=True, showgrid=False),
-        )
-
-        result = utils.set_plotly_config(heatmap, theme)
-
-        return result
-
-    @output
-    @render_widget
-    def day_plt() -> go.FigureWidget:
+    @render.ui
+    def line_plot() -> ui.HTML:
         data = (
             base.filter(
                 (pl.col("time_trunc") >= (max_timestamp - timedelta(hours=24)))
@@ -316,115 +222,195 @@ def server(input, output, session):
             .sort("time_trunc", "locale_hour_day")
         )
 
-        plt = go.FigureWidget()
-
-        plt.add_trace(
-            go.Scatter(
-                x=house_avg_hour["locale_hour_day"],
-                y=house_avg_hour["mean"],
-                name="Husets medeltemperatur",
-                mode="lines",
-                fill="tozeroy",
-                line=dict(color="rgba(211, 211, 211, 0.8)"),  # Light grey
-                fillcolor="rgba(211, 211, 211, 0.4)",
-                hoverinfo="none",  # Hide the hover label since it is mostly blocked any way
+        chart = (
+            Line(init_opts=opts.InitOpts(width="100%", renderer="svg"))
+            .add_xaxis(house_avg_hour["locale_hour_day"].to_list())
+            .add_yaxis(
+                "Husets medeltemperatur",
+                house_avg_hour["mean"].to_list(),
+                areastyle_opts=opts.AreaStyleOpts(color="lightgray", opacity=0.5),
+                linestyle_opts=opts.LineStyleOpts(color="lightgray", width=2),
+                symbol="none",
+                label_opts=opts.LabelOpts(is_show=False),
+                itemstyle_opts=opts.ItemStyleOpts(color="lightgray"),
             )
-        )
-        plt.update_layout(
-            template="plotly_white",
-            legend=dict(
-                orientation="h",
-                y=-0.14,
-                xanchor="center",
-                x=0.5,
-            ),
-            # Don't allow zooming any axes
-            xaxis=dict(fixedrange=True),
-            yaxis=dict(
-                fixedrange=True,
-                range=[
-                    18
-                    if min(data["temp"]) > 18
-                    else min(data["temp"]),  # Set the minimum value for the color scale
-                    25 if max(data["temp"]) < 24 else max(data["temp"] + 1),
-                ],  # Set the maximum value for the color scale, max(by_hour["temp"] + 1)],
-            ),
-        )
-
-        # Preparing the dumbbell lines by calculating min
-        # and max temps for each timestamp, concating them to a list
-        # and pushing them to dicts
-        connectors = (
-            data.group_by("locale_hour_day", "time_trunc")
-            .agg(
-                pl.col("temp").max().alias("y_end"),
-                pl.col("temp").min().alias("y_start"),
+            .add_yaxis(
+                "Våning 1",
+                data.filter(pl.col("floor") == "Våning 1")["temp"].to_list(),
+                symbol_size=12,
+                symbol="circle",
+                linestyle_opts=opts.LineStyleOpts(width=2),
             )
-            .select(
-                pl.col("time_trunc"),
-                pl.col("locale_hour_day"),
-                pl.concat_list(pl.col("y_start"), pl.col("y_end")).alias("values"),
+            .add_yaxis(
+                "Våning 2",
+                data.filter(pl.col("floor") == "Våning 2")["temp"].to_list(),
+                symbol_size=12,
+                symbol="circle",
+                linestyle_opts=opts.LineStyleOpts(width=2),
             )
-            .sort("time_trunc", "locale_hour_day")
-            .unique()
-            .to_dicts()
-        )
-
-        # For each connector (timestamp) we add the values
-        # which is a list of length 2, e.g. y_start and y_end
-        # We repeat the the x value twice too so plotly knows
-        # where each point is supposed to go.
-        for c in connectors:
-            plt.add_trace(
-                go.Scatter(
-                    y=c["values"],
-                    x=[c["locale_hour_day"], c["locale_hour_day"]],
-                    showlegend=False,
-                    mode="lines",
-                    line=dict(color="darkgray", dash="dot"),
-                    hoverinfo="none",  # Connectors should not any hover
-                )
+            .add_yaxis(
+                "Våning 3",
+                data.filter(pl.col("floor") == "Våning 3")["temp"].to_list(),
+                symbol_size=12,
+                symbol="circle",
+                linestyle_opts=opts.LineStyleOpts(width=2),
             )
-
-        # Now split each floor
-        floors = utils.split_floor_data(data)
-
-        for floor, df in floors.items():
-            # Get the color based on the key index
-            color = px.colors.qualitative.Safe[list(floors.keys()).index(floor)]
-            plt.add_trace(
-                go.Scatter(
-                    y=df["temp"],
-                    x=df["locale_hour_day"],
-                    mode="markers",
-                    name=floor,
-                    marker=dict(color=color, size=12),
-                    hoverinfo="text",
-                    hovertext=[
-                        f"""Datum: {row["date_iso"]}<br>Tid: {row["hour"]}<br>Temp: {row["temp"]}°C"""
-                        for row in df.rows(named=True)
+            .set_series_opts(
+                label_opts=opts.LabelOpts(is_show=False),
+                markline_opts=opts.MarkLineOpts(
+                    data=[
+                        {"yAxis": 21, "lineStyle": {"color": "#0000FF"}},
+                        {"yAxis": 24, "lineStyle": {"color": "#FF0000"}},
                     ],
-                )
+                    label_opts=opts.LabelOpts(is_show=False),
+                ),
             )
+            .set_global_opts(
+                tooltip_opts=opts.TooltipOpts(
+                    is_show=True,
+                    trigger="axis",
+                    axis_pointer_type="shadow",
+                ),
+                legend_opts=opts.LegendOpts(
+                    orient="horizontal",
+                    pos_bottom="0",
+                    textstyle_opts=opts.TextStyleOpts(
+                        font_size=14,
+                        color="#313131",
+                        font_family="Arial",
+                    ),
+                ),
+                xaxis_opts=opts.AxisOpts(
+                    axislabel_opts=opts.LabelOpts(
+                        font_size=14,
+                        font_family="Arial",
+                        color="#313131",
+                    )
+                ),
+                yaxis_opts=opts.AxisOpts(
+                    min_=18 if min(data["temp"]) > 18 else min(data["temp"]),
+                    max_=25 if max(data["temp"]) < 24 else max(data["temp"] + 1),
+                    axislabel_opts=opts.LabelOpts(
+                        formatter="{value} °C",
+                        font_size=14,
+                        font_family="Arial",
+                        color="#313131",
+                    ),
+                    axisline_opts=opts.AxisLineOpts(
+                        is_show=True,
+                        linestyle_opts=opts.LineStyleOpts(
+                            color="#313131",
+                        ),
+                    ),
+                ),
+            )
+        )
+        return ui.HTML(chart.render_embed())
 
-        plt = utils.add_threshold_lines(
-            plt,
-            xmin=data["locale_hour_day"].first(),
-            xmax=data["locale_hour_day"].last(),
+    @render.ui
+    def heatmap() -> ui.HTML:
+        data = base.filter(
+            (pl.col("day") >= max_day - timedelta(days=6))
+            & (pl.col("day") <= max_day + timedelta(days=1))
+        ).select("day", "hour", "temp", "floor")
+
+        if (selection := input.select_floor()) != "Huset":
+            data = data.filter(pl.col("floor") == selection)
+
+        avg_temp = (
+            data.group_by("day", "hour")
+            .agg(pl.col("temp").mean().round(1))
+            .sort("day", "hour")
+            .with_columns(
+                locale_day=xdt.format_localized(pl.col("day"), "%-d %B", "sv_SE"),
+                date_iso=pl.col("day").dt.strftime("%Y-%m-%d"),
+            )
         )
 
-        plt.update_yaxes(title_text="Temperatur °C")
+        x_labels = avg_temp["locale_day"].unique().sort().to_list()
+        y_labels = avg_temp["hour"].unique().sort(descending=True).to_list()
 
-        # Disable all clicking on traces for this plot as it doesn't make much sense here
-        plt.update_layout(legend_itemclick=False, legend_itemdoubleclick=False)
+        full_grid = pl.DataFrame(
+            {
+                "locale_day": [x for x in x_labels for y in y_labels],
+                "hour": [y for x in x_labels for y in y_labels],
+            }
+        )
 
-        result = utils.set_plotly_config(plt, theme)
+        merged = full_grid.join(
+            avg_temp.select(["locale_day", "hour", "temp"]),
+            on=["locale_day", "hour"],
+            how="left",
+        )
 
-        return result
+        x_idx = {label: idx for idx, label in enumerate(x_labels)}
+        y_idx = {label: idx for idx, label in enumerate(y_labels)}
 
-    @output
-    @render_widget
-    def long_plt() -> go.FigureWidget:
+        # Prepare the value list (use None for missing values; they’ll show as empty cells)
+        value = [
+            [x_idx[row[0]], y_idx[row[1]], row[2]]
+            for row in merged.iter_rows(named=False)
+        ]
+
+        #        value = [[i, j, random.randint(0, 50)] for i in range(24) for j in range(7)]
+
+        chart = (
+            HeatMap(init_opts=opts.InitOpts(width="100%", renderer="svg"))
+            .add_xaxis(x_labels)
+            .add_yaxis(
+                "Temperatur",
+                y_labels,
+                value,
+                label_opts=opts.LabelOpts(is_show=False),
+            )
+            .set_global_opts(
+                tooltip_opts=opts.TooltipOpts(
+                    is_show=True,
+                    trigger="item",
+                    axis_pointer_type="cross",
+                ),
+                xaxis_opts=opts.AxisOpts(
+                    axislabel_opts=opts.LabelOpts(
+                        font_size=14,
+                        font_family="Arial",
+                        color="#313131",
+                    )
+                ),
+                yaxis_opts=opts.AxisOpts(
+                    axislabel_opts=opts.LabelOpts(
+                        font_size=14,
+                        font_family="Arial",
+                        color="#313131",
+                    ),
+                    axisline_opts=opts.AxisLineOpts(
+                        is_show=True,
+                        linestyle_opts=opts.LineStyleOpts(
+                            color="#313131",
+                        ),
+                    ),
+                ),
+                legend_opts=opts.LegendOpts(is_show=False),
+                visualmap_opts=opts.VisualMapOpts(
+                    min_=18
+                    if min(avg_temp["temp"]) > 18
+                    else min(
+                        avg_temp["temp"]
+                    ),  # Set the minimum value for the color scale
+                    max_=25
+                    if max(avg_temp["temp"]) < 25
+                    else max(
+                        avg_temp["temp"]
+                    ),  # Set the maximum value for the color scale
+                    # ... other options
+                    range_color=utils.palette,
+                    is_show=False,
+                ),
+            )
+        )
+        return ui.HTML(chart.render_embed())
+
+    @render.ui
+    def long_line_plot() -> ui.HTML:
         if not input.daterange() or len(input.daterange()) < 2:
             raise ValueError("Invalid date range")
 
@@ -435,15 +421,22 @@ def server(input, output, session):
                 (input.daterange()[0]),
                 input.daterange()[1] + timedelta(days=1),
             )
-        )
+        ).select("day", "temp", "floor")
 
-        # Create a day variable and then group on it to get a mean temp per day
-        per_day = (
-            data.select("day", "temp", "floor")
-            .group_by(["day", "floor"])
+        data_grouped = (
+            data.group_by(["day", "floor"])
             .agg(
                 pl.col("temp").mean().round(1).alias("mean"),
                 pl.col("temp").std().fill_null(0).alias("std"),
+            )
+            .vstack(
+                data.group_by("day")
+                .agg(
+                    pl.col("temp").mean().round(1).alias("mean"),
+                    pl.col("temp").std().fill_null(0).alias("std"),
+                )
+                .with_columns(floor=pl.lit("Huset"))
+                .select("day", "floor", "mean", "std")
             )
             .with_columns(
                 (pl.col("mean") + pl.col("std")).round(1).alias("std_plus"),
@@ -455,84 +448,101 @@ def server(input, output, session):
             )
         )
 
-        # The names of each floor in a list
-        floors = data.select(pl.col("floor")).unique().to_series().sort()
-
-        # Produce 3 different dataframes, 1 for each floor, so we can plot it easily
-        floors_avg = {
-            floor: per_day.filter(pl.col("floor") == floor) for floor in floors
-        }
-
-        time_series = go.FigureWidget()
-
-        # Add the line trace
-        for floor, df in floors_avg.items():
-            df_in_date = df.filter(
-                (pl.col("day") >= input.daterange()[0])
-                & (pl.col("day") <= input.daterange()[1])
+        chart = (
+            Line(init_opts=opts.InitOpts(width="100%", renderer="svg"))
+            .add_xaxis(
+                data_grouped.select("day", "locale_day")
+                .unique()
+                .sort("day")
+                .select("locale_day")
+                .to_series()
+                .to_list()
             )
-
-            # Illustrate variance of standard deviation with a gray surface
-            # Must be applied first to allow hovering on the mean line
-            time_series.add_trace(
-                go.Scatter(
-                    x=df_in_date["locale_day"].to_list()
-                    + df_in_date["locale_day"].to_list()[::-1],
-                    y=df_in_date["std_minus"].to_list()
-                    + df_in_date["std_plus"].to_list()[::-1],
-                    fill="toself",
-                    line={"shape": "spline", "smoothing": 1.0},
-                    fillcolor="rgba(136,139,141,0.2)",
-                    line_color="rgba(255,255,255,0)",
-                    showlegend=False,
-                    legendgroup=floor,
-                    name=floor,
-                    hoverinfo="none",
-                )
+            .add_yaxis(
+                "Husets medeltemperatur",
+                data_grouped.filter(pl.col("floor") == "Huset")["mean"].to_list(),
+                areastyle_opts=opts.AreaStyleOpts(color="lightgray", opacity=0.5),
+                linestyle_opts=opts.LineStyleOpts(color="lightgray", width=2),
+                symbol="none",
+                label_opts=opts.LabelOpts(is_show=False),
+                itemstyle_opts=opts.ItemStyleOpts(color="lightgray"),
             )
-
-            # Get the color based on the key index
-            color = px.colors.qualitative.Safe[list(floors_avg.keys()).index(floor)]
-            # Add the mean as a line
-            time_series.add_trace(
-                go.Scatter(
-                    x=df_in_date["locale_day"],
-                    y=df_in_date["mean"],
-                    name=floor,
-                    legendgroup=floor,
-                    line=dict(color=color),
-                    hovertemplate="%{x}<br>%{y}°C",
-                )
+            .add_yaxis(
+                "Våning 1",
+                data_grouped.filter(pl.col("floor") == "Våning 1")["mean"].to_list(),
+                symbol_size=12,
+                symbol="circle",
+                linestyle_opts=opts.LineStyleOpts(width=2),
             )
-
-        # Title, template, legend etc.
-        time_series.update_layout(
-            template="plotly_white",
-            legend=dict(
-                orientation="h",
-                y=1.14,
-                xanchor="center",
-                x=0.5,
-            ),
-            # Don't allow zooming any axes
-            xaxis=dict(fixedrange=True),
-            yaxis=dict(fixedrange=True),
+            .add_yaxis(
+                "Våning 2",
+                data_grouped.filter(pl.col("floor") == "Våning 2")["mean"].to_list(),
+                symbol_size=12,
+                symbol="circle",
+                linestyle_opts=opts.LineStyleOpts(width=2),
+            )
+            .add_yaxis(
+                "Våning 3",
+                data_grouped.filter(pl.col("floor") == "Våning 3")["mean"].to_list(),
+                symbol_size=12,
+                symbol="circle",
+                linestyle_opts=opts.LineStyleOpts(width=2),
+            )
+            .set_series_opts(
+                label_opts=opts.LabelOpts(is_show=False),
+                markline_opts=opts.MarkLineOpts(
+                    data=[
+                        {"yAxis": 21, "lineStyle": {"color": "#0000FF"}},
+                        {"yAxis": 24, "lineStyle": {"color": "#FF0000"}},
+                    ],
+                    label_opts=opts.LabelOpts(is_show=False),
+                ),
+            )
+            .set_global_opts(
+                tooltip_opts=opts.TooltipOpts(
+                    is_show=True,
+                    trigger="axis",
+                    axis_pointer_type="shadow",
+                ),
+                legend_opts=opts.LegendOpts(
+                    orient="horizontal",
+                    pos_bottom="0",
+                    textstyle_opts=opts.TextStyleOpts(
+                        font_size=14,
+                        color="#313131",
+                        font_family="Arial",
+                    ),
+                ),
+                xaxis_opts=opts.AxisOpts(
+                    axislabel_opts=opts.LabelOpts(
+                        font_size=14,
+                        font_family="Arial",
+                        color="#313131",
+                    )
+                ),
+                yaxis_opts=opts.AxisOpts(
+                    min_=18
+                    if min(data_grouped["mean"]) > 18
+                    else min(data_grouped["mean"]),
+                    max_=25
+                    if max(data_grouped["mean"]) < 24
+                    else max(data_grouped["mean"] + 1),
+                    axislabel_opts=opts.LabelOpts(
+                        formatter="{value} °C",
+                        font_size=14,
+                        font_family="Arial",
+                        color="#313131",
+                    ),
+                    axisline_opts=opts.AxisLineOpts(
+                        is_show=True,
+                        linestyle_opts=opts.LineStyleOpts(
+                            color="#313131",
+                        ),
+                    ),
+                ),
+            )
         )
-
-        time_series = utils.add_threshold_lines(
-            time_series,
-            xmin=per_day["locale_day"].first(),
-            xmax=per_day["locale_day"].last(),
-        )
-
-        # Fix the axes
-        time_series.update_yaxes(title_text="Temperatur °C")
-        time_series.update_xaxes(nticks=10)
-
-        result = utils.set_plotly_config(time_series, theme)
-
-        # Show the plot
-        return result
+        return ui.HTML(chart.render_embed())
 
 
 app = App(app_ui, server)
