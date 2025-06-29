@@ -1151,6 +1151,7 @@ dependencies = [
     { name = "polars" },
     { name = "polars-xdt" },
     { name = "pyecharts" },
+    { name = "python-dateutil" },
     { name = "requests" },
     { name = "shiny" },
 ]
@@ -1172,6 +1173,7 @@ requires-dist = [
     { name = "polars", specifier = ">=0.20.10" },
     { name = "polars-xdt", specifier = ">=0.14.12" },
     { name = "pyecharts", specifier = ">=2.0.8" },
+    { name = "python-dateutil", specifier = ">=2.9.0.post0" },
     { name = "requests", specifier = ">=2.31.0" },
     { name = "shiny", specifier = ">=0.8.1" },
 ]

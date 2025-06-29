@@ -15,6 +15,7 @@ dependencies = [
     "libsass>=0.23.0",
     "pyecharts>=2.0.8",
     "coloraide>=4.7.1",
+    "python-dateutil>=2.9.0.post0",
 ]
 readme = "README.md"
 requires-python = ">= 3.11"
