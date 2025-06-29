@@ -39,7 +39,7 @@ def get_temps() -> None:
         for data in entities.values()
     ]
 
-    (
+    df = (
         pl.DataFrame(rows)
         .with_columns(
             hour=pl.col("time").dt.truncate("1h").dt.strftime("%H:%M"),
@@ -47,5 +47,7 @@ def get_temps() -> None:
             day=pl.col("time").dt.truncate("1d"),
             time_trunc=pl.col("time").dt.truncate("1h"),
         )
-        .write_parquet(SETTINGS["data"])
+        .select("time", "floor", "temp", "time_trunc", "day", "date_iso", "hour")
     )
+
+    pl.read_parquet(SETTINGS["data"]).vstack(df).write_parquet(SETTINGS["data"])

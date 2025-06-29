@@ -43,16 +43,7 @@ def dot_to_comma(num: float) -> str:
 
 def load_data() -> DataFrame:
     """Loads data for use in the app"""
-    return pl.read_parquet(SETTINGS["data"]).with_columns(
-        [
-            pl.col("time_trunc")
-            .dt.replace_time_zone("UTC")
-            .dt.convert_time_zone("Europe/Stockholm"),
-            pl.col("time")
-            .dt.replace_time_zone("UTC")
-            .dt.convert_time_zone("Europe/Stockholm"),
-        ]
-    )
+    return pl.read_parquet(SETTINGS["data"])
 
 
 def split_floor_data(df: pl.DataFrame) -> dict[str, pl.DataFrame]:
