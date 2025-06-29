@@ -3,7 +3,7 @@
     "A flake to create a devshell and build a container image for the app.";
 
   inputs = {
-    nixpkgs.url = "github:nixos/nixpkgs?ref=nixos-24.11";
+    nixpkgs.url = "github:nixos/nixpkgs?ref=nixos-25.05";
 
     pyproject-nix = {
       url = "github:pyproject-nix/pyproject.nix";
