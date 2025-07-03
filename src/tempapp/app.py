@@ -327,7 +327,14 @@ def server(input, output, session):
             )
         )
 
-        x_labels = avg_temp["locale_day"].unique().sort().to_list()
+        x_labels = (
+            avg_temp.select("locale_day", "date_iso")
+            .unique()
+            .sort(by="date_iso")
+            .select("locale_day")
+            .to_series()
+            .to_list()
+        )
         y_labels = avg_temp["hour"].unique().sort(descending=True).to_list()
 
         full_grid = pl.DataFrame(
@@ -346,13 +353,10 @@ def server(input, output, session):
         x_idx = {label: idx for idx, label in enumerate(x_labels)}
         y_idx = {label: idx for idx, label in enumerate(y_labels)}
 
-        # Prepare the value list (use None for missing values; they’ll show as empty cells)
         value = [
             [x_idx[row[0]], y_idx[row[1]], row[2]]
             for row in merged.iter_rows(named=False)
         ]
-
-        #        value = [[i, j, random.randint(0, 50)] for i in range(24) for j in range(7)]
 
         chart = (
             HeatMap(init_opts=opts.InitOpts(width="100%", renderer="svg"))
